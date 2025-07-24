@@ -31,7 +31,6 @@
     th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: right; }
     th { background: #f2f6fa; color: #2979ff; }
     td:first-child, th:first-child { text-align: left; }
-
     /* Freeze first column */
     th:first-child,
     td:first-child {
@@ -43,7 +42,6 @@
     th:first-child {
       z-index: 3;
     }
-
     #loading { margin: 22px 0; }
     @media (max-width: 900px) {
       .container { padding: 16px; max-width: 100%; }
@@ -256,11 +254,15 @@
         currentData.cashflow['Free Cash Flow'][index] = opcf - Math.abs(capex);
       });
 
+      // Fix: apply overview ratios to every year
+      for (let i = 0; i < income.length; i++) {
+        currentData.ratios['P/E Ratio'][i] = overview.PERatio || 'N/A';
+        currentData.ratios['Price/Book'][i] = overview.PriceToBookRatio || 'N/A';
+      }
+
       income.forEach((incomeReport, index) => {
         const balanceReport = balance[index];
         if (balanceReport) {
-          currentData.ratios['P/E Ratio'][index] = index === 0 ? overview.PERatio : 'N/A';
-          currentData.ratios['Price/Book'][index] = index === 0 ? overview.PriceToBookRatio : 'N/A';
           const revenue = parseFloat(incomeReport.totalRevenue);
           const netIncome = parseFloat(incomeReport.netIncome);
           currentData.ratios['Profit Margin %'][index] = revenue ? (netIncome / revenue * 100) : 'N/A';
