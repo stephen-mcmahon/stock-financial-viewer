@@ -4,69 +4,176 @@
   <meta charset="UTF-8" />
   <title>Stock Financial Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; padding: 0; }
-    .container { 
-      max-width: 1400px;
-      margin: 40px auto; 
-      background: #fff; 
-      border-radius: 8px; 
-      box-shadow: 0 2px 8px #0001; 
-      padding: 48px;
+    :root {
+      --primary: #1368ce;
+      --primary-light: #eaf3fc;
+      --bg: #f8f9fb;
+      --border: #e0e6ed;
+      --card: #fff;
+      --shadow: 0 2px 8px #00000014;
+      --radius: 10px;
+      --font: 'Inter', Arial, sans-serif;
     }
-    h1 { margin-top: 0; font-size: 2.3rem; }
-    #searchSection { display: flex; gap: 12px; margin-bottom: 18px; }
-    #stockSymbol { flex: 1; padding: 10px; font-size: 1.15rem; }
-    #searchBtn { padding: 10px 22px; font-size: 1.15rem; cursor: pointer; }
-    #errorMessage { color: #b00; margin-bottom: 12px; }
-    .hidden { display: none !important; }
-    #companyInfo { margin: 22px 0 10px 0; }
-    #companyName { font-weight: bold; font-size: 1.35rem; }
-    #companyDetails { font-size: 1.1rem; color: #555; }
-    #tabContainer { display: flex; margin: 26px 0 14px 0; gap: 16px; }
-    .tab { padding: 8px 20px; border-radius: 4px 4px 0 0; background: #eee; cursor: pointer; font-size: 1.08rem; }
-    .tab.active { background: #2979ff; color: #fff; }
-    #tableContainer { overflow-x: auto; }
-    table { border-collapse: collapse; width: 100%; margin: 0; background: #fcfcfe; font-size: 1.12rem; }
-    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: right; }
-    th { background: #f2f6fa; color: #2979ff; }
-    td:first-child, th:first-child { text-align: left; }
-    /* Freeze first column */
-    th:first-child,
-    td:first-child {
+    html, body { margin: 0; background: var(--bg); font-family: var(--font); }
+    body { color: #222; }
+    .container {
+      max-width: 1200px;
+      margin: 56px auto 40px auto;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 0 0 40px 0;
+      overflow: hidden;
+    }
+    header {
+      padding: 28px 44px 16px 44px;
+      border-bottom: 1px solid var(--border);
+      background: var(--primary-light);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .company-meta h1 {
+      font-size: 2.1rem;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .company-meta p {
+      margin: 4px 0 0 0;
+      font-size: 1.08rem;
+      color: #444;
+    }
+    #searchSection {
+      margin: 18px 44px 0 44px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #stockSymbol {
+      flex: 0 0 180px;
+      padding: 10px 18px;
+      font-size: 1.09rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      transition: border-color 0.2s;
+    }
+    #stockSymbol:focus { border-color: var(--primary); outline: none; }
+    #searchBtn {
+      padding: 10px 26px;
+      font-size: 1.09rem;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    #searchBtn:hover { background: #0a54ae; }
+    #errorMessage {
+      color: #c00;
+      margin: 12px 44px 0 44px;
+      font-size: 1.08rem;
+    }
+    #tabContainer {
+      margin: 24px 44px 0 44px;
+      display: flex;
+      gap: 3px;
+      border-bottom: 1.5px solid var(--border);
+    }
+    .tab {
+      font-size: 1.08rem;
+      padding: 11px 36px 10px 36px;
+      border: none;
+      background: none;
+      color: #444;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: background 0.2s, color 0.2s;
+      border-bottom: 2.5px solid transparent;
+      outline: none;
+      position: relative;
+      top: 2px;
+    }
+    .tab.active {
+      background: var(--card);
+      color: var(--primary);
+      border-bottom: 2.5px solid var(--primary);
+      z-index: 1;
+    }
+    #dataContainer { margin: 0 44px; }
+    #loading { margin: 30px 0; font-size: 1.15rem; text-align: center; }
+    #tableContainer {
+      margin-top: 24px;
+      overflow-x: auto;
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 1.09rem;
+      min-width: 700px;
+      background: var(--card);
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: right;
+    }
+    th {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 1.08rem;
       position: sticky;
-      left: 0;
-      background: #f8fafc;
+      top: 0;
       z-index: 2;
     }
-    th:first-child {
+    td:first-child, th:first-child {
+      text-align: left;
+      background: #f6f8fa;
+      position: sticky;
+      left: 0;
       z-index: 3;
     }
-    #loading { margin: 22px 0; }
+    tr:hover td {
+      background: #f7fbff;
+    }
     @media (max-width: 900px) {
-      .container { padding: 16px; max-width: 100%; }
-      #searchSection { flex-direction: column; }
-      #tabContainer { flex-direction: column; }
+      .container { max-width: 100%; border-radius: 0; box-shadow: none; }
+      header, #searchSection, #tabContainer, #dataContainer { margin: 0 12px; }
+      header { padding-left: 12px; padding-right: 12px; }
+      #tableContainer { margin: 18px 0 0 0; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Stock Financial Viewer</h1>
-    <div id="searchSection">
-      <input type="text" id="stockSymbol" placeholder="Enter stock symbol (e.g. AAPL)" autocomplete="off" />
-      <button id="searchBtn">Search</button>
-    </div>
+    <header>
+      <div class="company-meta">
+        <h1 id="companyName">Financial Data Viewer</h1>
+        <p id="companyDetails"></p>
+      </div>
+      <div id="searchSection">
+        <input type="text" id="stockSymbol" placeholder="Symbol (e.g. AAPL)" autocomplete="off" />
+        <button id="searchBtn">Search</button>
+      </div>
+    </header>
     <div id="errorMessage" class="hidden"></div>
-    <div id="companyInfo" class="hidden">
-      <div id="companyName"></div>
-      <div id="companyDetails"></div>
-    </div>
     <div id="tabContainer" class="hidden">
-      <div class="tab active" data-tab="income">Income Statement</div>
-      <div class="tab" data-tab="balance">Balance Sheet</div>
-      <div class="tab" data-tab="cashflow">Cash Flow</div>
-      <div class="tab" data-tab="ratios">Key Ratios</div>
+      <button class="tab active" data-tab="income">Income Statement</button>
+      <button class="tab" data-tab="balance">Balance Sheet</button>
+      <button class="tab" data-tab="cashflow">Cash Flow</button>
+      <button class="tab" data-tab="ratios">Key Ratios</button>
     </div>
     <div id="dataContainer" class="hidden">
       <div id="loading" class="hidden">Loading data...</div>
@@ -82,13 +189,9 @@
       if (num === null || num === undefined || num === 'None') return 'N/A';
       const parsedNum = parseFloat(num);
       if (isNaN(parsedNum)) return 'N/A';
-      if (Math.abs(parsedNum) >= 1e6) {
-        // Show in millions with thousands separator, no decimal
-        return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:0}) + 'M';
-      }
-      if (Math.abs(parsedNum) >= 1e3) {
-        return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
-      }
+      if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toLocaleString(undefined, {maximumFractionDigits:2}) + 'B';
+      if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:0}) + 'M';
+      if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
       return parsedNum.toFixed(2);
     }
 
@@ -122,12 +225,10 @@
           fetchCashFlow(symbol)
         ]);
 
-        // Get year-end adjusted close prices for all fiscal years
         const fiscalDates = balance.map(report => report.fiscalDateEnding);
         const sharesArray = balance.map(report => report.commonStockSharesOutstanding);
         const yearEndPrices = await getYearEndPrices(symbol, fiscalDates, API_KEY);
 
-        // Calculate market cap for each year (price * shares)
         const yearlyMarketCaps = [];
         for (let i = 0; i < yearEndPrices.length; i++) {
           const price = parseFloat(yearEndPrices[i]);
@@ -141,17 +242,18 @@
 
         processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps);
 
-        document.getElementById('companyInfo').classList.remove('hidden');
         document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
         document.getElementById('companyDetails').textContent =
           `${overview.Sector || 'N/A'} | Market Cap: ${formatNumber(overview.MarketCapitalization)} | Exchange: ${overview.Exchange || 'N/A'}`;
 
         document.getElementById('tabContainer').classList.remove('hidden');
+        document.getElementById('dataContainer').classList.remove('hidden');
         displayData();
 
       } catch (error) {
         showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
-        document.getElementById('companyInfo').classList.add('hidden');
+        document.getElementById('companyName').textContent = "Financial Data Viewer";
+        document.getElementById('companyDetails').textContent = "";
         document.getElementById('tabContainer').classList.add('hidden');
       } finally {
         document.getElementById('searchBtn').disabled = false;
@@ -192,7 +294,6 @@
       return data.annualReports;
     }
 
-    // Looks back up to 30 days for each fiscal date
     async function getYearEndPrices(symbol, fiscalDates, apiKey) {
       const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
       const response = await fetch(url);
@@ -208,7 +309,6 @@
             prices.push(daily[checkDate]['5. adjusted close']);
             found = true;
           } else {
-            // Try previous day
             const d = new Date(checkDate);
             d.setDate(d.getDate() - 1);
             checkDate = d.toISOString().slice(0, 10);
@@ -223,7 +323,6 @@
     }
 
     function processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps) {
-      // Get years and REVERSE them to go from oldest to newest
       const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
 
       currentData = {
@@ -245,7 +344,7 @@
           'Cash & Equivalents': [],
           'Total Debt': [],
           'Retained Earnings': [],
-          'Market Cap': [] // Will fill below
+          'Market Cap': []
         },
         cashflow: {
           'Operating Cash Flow': [],
@@ -267,7 +366,6 @@
         }
       };
 
-      // Fill in the data arrays (in original order)
       income.forEach((report, index) => {
         currentData.income['Revenue'][index] = report.totalRevenue;
         currentData.income['Gross Profit'][index] = report.grossProfit;
@@ -289,7 +387,6 @@
         currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
       });
 
-      // Add Market Cap row (reverse for oldest-to-newest)
       let reversedCaps = yearlyMarketCaps.slice().reverse();
       currentData.balance['Market Cap'] = reversedCaps;
 
@@ -329,7 +426,6 @@
         }
       });
 
-      // Reverse all data arrays so they match the oldest-to-newest order of years
       Object.values(currentData.income).forEach(arr => arr.reverse());
       Object.values(currentData.balance).forEach(arr => arr.reverse());
       Object.values(currentData.cashflow).forEach(arr => arr.reverse());
