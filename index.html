@@ -7,12 +7,12 @@
   <style>
     body { font-family: Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; padding: 0; }
     .container { 
-      max-width: 1400px;   /* Expanded from 900px */
+      max-width: 1400px;
       margin: 40px auto; 
       background: #fff; 
       border-radius: 8px; 
       box-shadow: 0 2px 8px #0001; 
-      padding: 48px;       /* Increased padding */
+      padding: 48px;
     }
     h1 { margin-top: 0; font-size: 2.3rem; }
     #searchSection { display: flex; gap: 12px; margin-bottom: 18px; }
@@ -31,6 +31,19 @@
     th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: right; }
     th { background: #f2f6fa; color: #2979ff; }
     td:first-child, th:first-child { text-align: left; }
+
+    /* Freeze first column */
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      background: #f8fafc;
+      z-index: 2;
+    }
+    th:first-child {
+      z-index: 3;
+    }
+
     #loading { margin: 22px 0; }
     @media (max-width: 900px) {
       .container { padding: 16px; max-width: 100%; }
@@ -67,13 +80,18 @@
     let currentTab = 'income';
     const API_KEY = 'BH5QY6K3JQKBEMT7';
 
+    // Always show millions, so 1B = 1,000M, 900M = 900M, etc.
     function formatNumber(num) {
       if (num === null || num === undefined || num === 'None') return 'N/A';
       const parsedNum = parseFloat(num);
       if (isNaN(parsedNum)) return 'N/A';
-      if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toFixed(2) + 'B';
-      if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toFixed(2) + 'M';
-      if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toFixed(2) + 'K';
+      if (Math.abs(parsedNum) >= 1e6) {
+        // Show in millions with thousands separator, no decimal
+        return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:0}) + 'M';
+      }
+      if (Math.abs(parsedNum) >= 1e3) {
+        return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
+      }
       return parsedNum.toFixed(2);
     }
 
@@ -161,7 +179,6 @@
       return data.annualReports;
     }
 
-    // ==== CHANGES FOR OLDEST-TO-NEWEST YEARS DISPLAY BEGIN ====
     function processFinancialData(overview, income, balance, cashflow) {
       // Get years and REVERSE them to go from oldest to newest
       const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
@@ -267,7 +284,6 @@
       Object.values(currentData.cashflow).forEach(arr => arr.reverse());
       Object.values(currentData.ratios).forEach(arr => arr.reverse());
     }
-    // ==== CHANGES FOR OLDEST-TO-NEWEST YEARS DISPLAY END ====
 
     function displayData() {
       const tableContainer = document.getElementById('tableContainer');
