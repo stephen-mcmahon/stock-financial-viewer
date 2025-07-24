@@ -2,11 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Stock Financial Viewer (Alpha Vantage + Yahoo Finance)</title>
+  <title>Stock Financial Viewer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; padding: 0; }
-    .container { max-width: 1400px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 48px; }
+    .container { 
+      max-width: 1400px;
+      margin: 40px auto; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px #0001; 
+      padding: 48px;
+    }
     h1 { margin-top: 0; font-size: 2.3rem; }
     #searchSection { display: flex; gap: 12px; margin-bottom: 18px; }
     #stockSymbol { flex: 1; padding: 10px; font-size: 1.15rem; }
@@ -16,7 +23,7 @@
     #companyInfo { margin: 22px 0 10px 0; }
     #companyName { font-weight: bold; font-size: 1.35rem; }
     #companyDetails { font-size: 1.1rem; color: #555; }
-    #tabContainer { display: flex; margin: 26px 0 14px 0; gap: 16px; flex-wrap: wrap; }
+    #tabContainer { display: flex; margin: 26px 0 14px 0; gap: 16px; }
     .tab { padding: 8px 20px; border-radius: 4px 4px 0 0; background: #eee; cursor: pointer; font-size: 1.08rem; }
     .tab.active { background: #2979ff; color: #fff; }
     #tableContainer { overflow-x: auto; }
@@ -24,8 +31,17 @@
     th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: right; }
     th { background: #f2f6fa; color: #2979ff; }
     td:first-child, th:first-child { text-align: left; }
-    th:first-child, td:first-child { position: sticky; left: 0; background: #f8fafc; z-index: 2; }
-    th:first-child { z-index: 3; }
+    /* Freeze first column */
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      background: #f8fafc;
+      z-index: 2;
+    }
+    th:first-child {
+      z-index: 3;
+    }
     #loading { margin: 22px 0; }
     @media (max-width: 900px) {
       .container { padding: 16px; max-width: 100%; }
@@ -36,7 +52,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Stock Financial Viewer (Alpha Vantage + Yahoo Finance)</h1>
+    <h1>Stock Financial Viewer</h1>
     <div id="searchSection">
       <input type="text" id="stockSymbol" placeholder="Enter stock symbol (e.g. AAPL)" autocomplete="off" />
       <button id="searchBtn">Search</button>
@@ -51,8 +67,6 @@
       <div class="tab" data-tab="balance">Balance Sheet</div>
       <div class="tab" data-tab="cashflow">Cash Flow</div>
       <div class="tab" data-tab="ratios">Key Ratios</div>
-      <div class="tab" data-tab="prices">Year-End Prices (Yahoo)</div>
-      <div class="tab" data-tab="marketcap">Year-End Market Cap (Yahoo × Shares)</div>
     </div>
     <div id="dataContainer" class="hidden">
       <div id="loading" class="hidden">Loading data...</div>
@@ -65,13 +79,16 @@
     const API_KEY = 'BH5QY6K3JQKBEMT7';
 
     function formatNumber(num) {
-      if (num === null || num === undefined || num === 'None' || num === 'N/A') return 'N/A';
+      if (num === null || num === undefined || num === 'None') return 'N/A';
       const parsedNum = parseFloat(num);
       if (isNaN(parsedNum)) return 'N/A';
-      if (Math.abs(parsedNum) >= 1e12) return (parsedNum / 1e12).toLocaleString(undefined, {maximumFractionDigits:2}) + 'T';
-      if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toLocaleString(undefined, {maximumFractionDigits:2}) + 'B';
-      if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:2}) + 'M';
-      if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
+      if (Math.abs(parsedNum) >= 1e6) {
+        // Show in millions with thousands separator, no decimal
+        return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:0}) + 'M';
+      }
+      if (Math.abs(parsedNum) >= 1e3) {
+        return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
+      }
       return parsedNum.toFixed(2);
     }
 
@@ -98,7 +115,6 @@
       document.getElementById('tableContainer').innerHTML = '';
 
       try {
-        // Alpha Vantage fetches
         const [overview, income, balance, cashflow] = await Promise.all([
           fetchCompanyOverview(symbol),
           fetchIncomeStatement(symbol),
@@ -106,60 +122,24 @@
           fetchCashFlow(symbol)
         ]);
 
+        // Get year-end adjusted close prices for all fiscal years
         const fiscalDates = balance.map(report => report.fiscalDateEnding);
-        const sharesArray = balance.map(report => parseFloat(report.commonStockSharesOutstanding) || null);
-        const yearsAlpha = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
+        const sharesArray = balance.map(report => report.commonStockSharesOutstanding);
+        const yearEndPrices = await getYearEndPrices(symbol, fiscalDates, API_KEY);
 
-        // Yahoo Finance fetches
-        const period1 = Math.floor(new Date('1999-12-01T00:00:00Z').getTime() / 1000);
-        const period2 = Math.floor(new Date().getTime() / 1000);
-        const yahooCsv = await fetchYahooFinanceCSV(symbol, period1, period2);
-        const yahooMonthly = parseYahooCSV(yahooCsv);
-
-        // Build year-end closes: for each year, find the last row in December
-        const yearEndPricesYahoo = {};
-        for (const row of yahooMonthly) {
-          const dt = new Date(row.date);
-          const year = dt.getFullYear();
-          const month = dt.getMonth();
-          if (month === 11) { // December
-            yearEndPricesYahoo[year] = row.close;
-          }
-        }
-
-        // Map Yahoo prices to Alpha Vantage fiscal years (for most US stocks, fiscal year end is September, but here we assume Dec 31)
-        // We'll try to match each Alpha Vantage year to its closest December price.
-        const yearToPrice = {};
-        for (let i = 0; i < yearsAlpha.length; ++i) {
-          const year = yearsAlpha[i];
-          if (yearEndPricesYahoo[year]) {
-            yearToPrice[year] = yearEndPricesYahoo[year];
+        // Calculate market cap for each year (price * shares)
+        const yearlyMarketCaps = [];
+        for (let i = 0; i < yearEndPrices.length; i++) {
+          const price = parseFloat(yearEndPrices[i]);
+          const shares = parseFloat(sharesArray[i]);
+          if (!isNaN(price) && !isNaN(shares)) {
+            yearlyMarketCaps[i] = (price * shares).toString();
           } else {
-            // Try previous December or next December
-            yearToPrice[year] = yearEndPricesYahoo[year-1] || yearEndPricesYahoo[year+1] || null;
+            yearlyMarketCaps[i] = 'N/A';
           }
         }
 
-        // Market cap by year (Yahoo close × shares from Alpha Vantage for that year)
-        const yearToMarketCap = {};
-        for (let i = 0; i < yearsAlpha.length; ++i) {
-          const year = yearsAlpha[i];
-          const price = yearToPrice[year];
-          const shares = sharesArray[i];
-          if (price && shares) {
-            yearToMarketCap[year] = price * shares;
-          } else {
-            yearToMarketCap[year] = null;
-          }
-        }
-
-        // Prepare all data for tabs
-        processFinancialData(overview, income, balance, cashflow, yearToMarketCap);
-
-        // Add Yahoo-derived data
-        currentData.yearsAlpha = yearsAlpha;
-        currentData.yahooPrices = yearToPrice;
-        currentData.yahooMarketCap = yearToMarketCap;
+        processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps);
 
         document.getElementById('companyInfo').classList.remove('hidden');
         document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
@@ -170,8 +150,7 @@
         displayData();
 
       } catch (error) {
-        showError(`Error fetching data for this symbol. ${error.message}`);
-        console.error('Error:', error);
+        showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
         document.getElementById('companyInfo').classList.add('hidden');
         document.getElementById('tabContainer').classList.add('hidden');
       } finally {
@@ -181,7 +160,6 @@
       }
     }
 
-    // Alpha Vantage functions
     async function fetchCompanyOverview(symbol) {
       const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -189,6 +167,7 @@
       if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
       return data;
     }
+
     async function fetchIncomeStatement(symbol) {
       const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -196,6 +175,7 @@
       if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
       return data.annualReports;
     }
+
     async function fetchBalanceSheet(symbol) {
       const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -203,6 +183,7 @@
       if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
       return data.annualReports;
     }
+
     async function fetchCashFlow(symbol) {
       const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -211,75 +192,82 @@
       return data.annualReports;
     }
 
-    // Yahoo Finance CSV download and parsing
-    async function fetchYahooFinanceCSV(symbol, period1, period2) {
-      const url = `https://query1.finance.yahoo.com/v7/finance/download/${symbol}?period1=${period1}&period2=${period2}&interval=1mo&events=history&includeAdjustedClose=true`;
-      // Use a CORS proxy for browser testing
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error('Could not fetch Yahoo Finance data');
-      return await response.text();
-    }
-    function parseYahooCSV(csv) {
-      const lines = csv.trim().split('\n');
-      const header = lines[0].split(',');
-      const dateIdx = header.indexOf('Date');
-      const closeIdx = header.indexOf('Close');
-      if (dateIdx === -1 || closeIdx === -1) return [];
-      const result = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        const date = cols[dateIdx];
-        const close = cols[closeIdx];
-        if (date && close && close !== 'null') {
-          result.push({date, close: parseFloat(close)});
+    // Looks back up to 30 days for each fiscal date
+    async function getYearEndPrices(symbol, fiscalDates, apiKey) {
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const daily = data['Time Series (Daily)'] || {};
+      let prices = [];
+
+      for (const date of fiscalDates) {
+        let checkDate = date;
+        let found = false, attempts = 0;
+        while (!found && attempts < 30) {
+          if (daily[checkDate]) {
+            prices.push(daily[checkDate]['5. adjusted close']);
+            found = true;
+          } else {
+            // Try previous day
+            const d = new Date(checkDate);
+            d.setDate(d.getDate() - 1);
+            checkDate = d.toISOString().slice(0, 10);
+            attempts++;
+          }
+        }
+        if (!found) {
+          prices.push('N/A');
         }
       }
-      return result;
+      return prices;
     }
 
     function processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps) {
       // Get years and REVERSE them to go from oldest to newest
       const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
 
-      currentData.income = {
-        'Revenue': [],
-        'Gross Profit': [],
-        'Operating Income': [],
-        'EBITDA': [],
-        'Net Income': [],
-        'EPS (Diluted)': []
-      };
-      currentData.balance = {
-        'Total Assets': [],
-        'Current Assets': [],
-        'Total Liabilities': [],
-        'Current Liabilities': [],
-        'Shareholders Equity': [],
-        'Cash & Equivalents': [],
-        'Total Debt': [],
-        'Retained Earnings': [],
-        'Market Cap': []
-      };
-      currentData.cashflow = {
-        'Operating Cash Flow': [],
-        'Investing Cash Flow': [],
-        'Financing Cash Flow': [],
-        'Free Cash Flow': [],
-        'Capital Expenditures': [],
-        'Dividends Paid': []
-      };
-      currentData.ratios = {
-        'P/E Ratio': [],
-        'Price/Book': [],
-        'Profit Margin %': [],
-        'Operating Margin %': [],
-        'ROE %': [],
-        'ROA %': [],
-        'Current Ratio': [],
-        'Debt to Equity': []
+      currentData = {
+        years: years,
+        income: {
+          'Revenue': [],
+          'Gross Profit': [],
+          'Operating Income': [],
+          'EBITDA': [],
+          'Net Income': [],
+          'EPS (Diluted)': []
+        },
+        balance: {
+          'Total Assets': [],
+          'Current Assets': [],
+          'Total Liabilities': [],
+          'Current Liabilities': [],
+          'Shareholders Equity': [],
+          'Cash & Equivalents': [],
+          'Total Debt': [],
+          'Retained Earnings': [],
+          'Market Cap': [] // Will fill below
+        },
+        cashflow: {
+          'Operating Cash Flow': [],
+          'Investing Cash Flow': [],
+          'Financing Cash Flow': [],
+          'Free Cash Flow': [],
+          'Capital Expenditures': [],
+          'Dividends Paid': []
+        },
+        ratios: {
+          'P/E Ratio': [],
+          'Price/Book': [],
+          'Profit Margin %': [],
+          'Operating Margin %': [],
+          'ROE %': [],
+          'ROA %': [],
+          'Current Ratio': [],
+          'Debt to Equity': []
+        }
       };
 
+      // Fill in the data arrays (in original order)
       income.forEach((report, index) => {
         currentData.income['Revenue'][index] = report.totalRevenue;
         currentData.income['Gross Profit'][index] = report.grossProfit;
@@ -302,7 +290,7 @@
       });
 
       // Add Market Cap row (reverse for oldest-to-newest)
-      let reversedCaps = Object.values(yearlyMarketCaps).slice().reverse();
+      let reversedCaps = yearlyMarketCaps.slice().reverse();
       currentData.balance['Market Cap'] = reversedCaps;
 
       cashflow.forEach((report, index) => {
@@ -341,6 +329,7 @@
         }
       });
 
+      // Reverse all data arrays so they match the oldest-to-newest order of years
       Object.values(currentData.income).forEach(arr => arr.reverse());
       Object.values(currentData.balance).forEach(arr => arr.reverse());
       Object.values(currentData.cashflow).forEach(arr => arr.reverse());
@@ -349,8 +338,9 @@
 
     function displayData() {
       const tableContainer = document.getElementById('tableContainer');
-      const years = currentData.yearsAlpha || [];
-      if (!years.length) {
+      const data = currentData[currentTab];
+      const years = currentData.years;
+      if (!data || years.length === 0) {
         tableContainer.innerHTML = '<p>No data available for this section.</p>';
         return;
       }
@@ -358,50 +348,23 @@
       html += '<tr><th>Metric</th>';
       years.forEach(year => { html += `<th>${year}</th>`; });
       html += '</tr>';
-      if (currentTab === 'income' && currentData.income) {
-        Object.keys(currentData.income).forEach(metric => {
-          html += `<tr><td>${metric}</td>`;
-          currentData.income[metric].forEach(value => { html += `<td>${formatNumber(value)}</td>`; });
-          html += '</tr>';
-        });
-      } else if (currentTab === 'balance' && currentData.balance) {
-        Object.keys(currentData.balance).forEach(metric => {
-          html += `<tr><td>${metric}</td>`;
-          currentData.balance[metric].forEach(value => { html += `<td>${formatNumber(value)}</td>`; });
-          html += '</tr>';
-        });
-      } else if (currentTab === 'cashflow' && currentData.cashflow) {
-        Object.keys(currentData.cashflow).forEach(metric => {
-          html += `<tr><td>${metric}</td>`;
-          currentData.cashflow[metric].forEach(value => { html += `<td>${formatNumber(value)}</td>`; });
-          html += '</tr>';
-        });
-      } else if (currentTab === 'ratios' && currentData.ratios) {
-        Object.keys(currentData.ratios).forEach(metric => {
-          html += `<tr><td>${metric}</td>`;
-          currentData.ratios[metric].forEach(value => {
+      Object.keys(data).forEach(metric => {
+        html += `<tr><td>${metric}</td>`;
+        data[metric].forEach(value => {
+          if (currentTab === 'ratios' && metric.includes('%')) {
             const numValue = parseFloat(value);
-            if (metric.includes('%')) {
-              html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) + '%' : 'N/A'}</td>`;
-            } else {
-              html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
-            }
-          });
-          html += '</tr>';
-        });
-      } else if (currentTab === 'prices' && currentData.yahooPrices) {
-        html += '<tr><td>Year-End Price (Yahoo)</td>';
-        years.forEach(year => {
-          html += `<td>${formatNumber(currentData.yahooPrices[year])}</td>`;
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) + '%' : 'N/A'}</td>`;
+          } else if (currentTab === 'ratios') {
+            const numValue = parseFloat(value);
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
+          } else if (metric === 'Market Cap') {
+            html += `<td>${formatNumber(value)}</td>`;
+          } else {
+            html += `<td>${formatNumber(value)}</td>`;
+          }
         });
         html += '</tr>';
-      } else if (currentTab === 'marketcap' && currentData.yahooMarketCap) {
-        html += '<tr><td>Year-End Market Cap (Yahoo × Shares)</td>';
-        years.forEach(year => {
-          html += `<td>${formatNumber(currentData.yahooMarketCap[year])}</td>`;
-        });
-        html += '</tr>';
-      }
+      });
       html += '</table>';
       tableContainer.innerHTML = html;
     }
