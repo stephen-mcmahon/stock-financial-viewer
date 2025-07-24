@@ -78,7 +78,6 @@
     let currentTab = 'income';
     const API_KEY = 'BH5QY6K3JQKBEMT7';
 
-    // Always show millions, so 1B = 1,000M, 900M = 900M, etc.
     function formatNumber(num) {
       if (num === null || num === undefined || num === 'None') return 'N/A';
       const parsedNum = parseFloat(num);
@@ -123,7 +122,24 @@
           fetchCashFlow(symbol)
         ]);
 
-        processFinancialData(overview, income, balance, cashflow);
+        // Get year-end adjusted close prices for all fiscal years
+        const fiscalDates = balance.map(report => report.fiscalDateEnding);
+        const sharesArray = balance.map(report => report.commonStockSharesOutstanding);
+        const yearEndPrices = await getYearEndPrices(symbol, fiscalDates, API_KEY);
+
+        // Calculate market cap for each year (price * shares)
+        const yearlyMarketCaps = [];
+        for (let i = 0; i < yearEndPrices.length; i++) {
+          const price = parseFloat(yearEndPrices[i]);
+          const shares = parseFloat(sharesArray[i]);
+          if (!isNaN(price) && !isNaN(shares)) {
+            yearlyMarketCaps[i] = (price * shares).toString();
+          } else {
+            yearlyMarketCaps[i] = 'N/A';
+          }
+        }
+
+        processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps);
 
         document.getElementById('companyInfo').classList.remove('hidden');
         document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
@@ -177,7 +193,35 @@
       return data.annualReports;
     }
 
-    function processFinancialData(overview, income, balance, cashflow) {
+    // Fetches year-end adjusted close price for each fiscal year
+    async function getYearEndPrices(symbol, fiscalDates, apiKey) {
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const daily = data['Time Series (Daily)'] || {};
+      let prices = [];
+
+      for (const date of fiscalDates) {
+        let checkDate = date;
+        let found = false, attempts = 0;
+        while (!found && attempts < 10) {
+          if (daily[checkDate]) {
+            prices.push(daily[checkDate]['5. adjusted close']);
+            found = true;
+          } else {
+            // Try previous day
+            const d = new Date(checkDate);
+            d.setDate(d.getDate() - 1);
+            checkDate = d.toISOString().slice(0, 10);
+            attempts++;
+          }
+        }
+        if (!found) prices.push('N/A');
+      }
+      return prices;
+    }
+
+    function processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps) {
       // Get years and REVERSE them to go from oldest to newest
       const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
 
@@ -199,7 +243,8 @@
           'Shareholders Equity': [],
           'Cash & Equivalents': [],
           'Total Debt': [],
-          'Retained Earnings': []
+          'Retained Earnings': [],
+          'Market Cap': [] // Will fill below
         },
         cashflow: {
           'Operating Cash Flow': [],
@@ -243,6 +288,10 @@
         currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
       });
 
+      // Add Market Cap row (reverse for oldest-to-newest)
+      let reversedCaps = yearlyMarketCaps.slice().reverse();
+      currentData.balance['Market Cap'] = reversedCaps;
+
       cashflow.forEach((report, index) => {
         currentData.cashflow['Operating Cash Flow'][index] = report.operatingCashflow;
         currentData.cashflow['Investing Cash Flow'][index] = report.cashflowFromInvestment;
@@ -254,7 +303,6 @@
         currentData.cashflow['Free Cash Flow'][index] = opcf - Math.abs(capex);
       });
 
-      // Fix: apply overview ratios to every year
       for (let i = 0; i < income.length; i++) {
         currentData.ratios['P/E Ratio'][i] = overview.PERatio || 'N/A';
         currentData.ratios['Price/Book'][i] = overview.PriceToBookRatio || 'N/A';
@@ -308,6 +356,8 @@
           } else if (currentTab === 'ratios') {
             const numValue = parseFloat(value);
             html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
+          } else if (metric === 'Market Cap') {
+            html += `<td>${formatNumber(value)}</td>`;
           } else {
             html += `<td>${formatNumber(value)}</td>`;
           }
