@@ -193,7 +193,7 @@
       return data.annualReports;
     }
 
-    // Fetches year-end adjusted close price for each fiscal year
+    // Improved version: Looks back up to 30 days for each fiscal date and logs to console if not found
     async function getYearEndPrices(symbol, fiscalDates, apiKey) {
       const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
       const response = await fetch(url);
@@ -204,7 +204,7 @@
       for (const date of fiscalDates) {
         let checkDate = date;
         let found = false, attempts = 0;
-        while (!found && attempts < 10) {
+        while (!found && attempts < 30) {
           if (daily[checkDate]) {
             prices.push(daily[checkDate]['5. adjusted close']);
             found = true;
@@ -216,7 +216,10 @@
             attempts++;
           }
         }
-        if (!found) prices.push('N/A');
+        if (!found) {
+          console.log(`No price found for ${symbol} around fiscal date ${date}.`);
+          prices.push('N/A');
+        }
       }
       return prices;
     }
