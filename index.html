@@ -1,319 +1,305 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Stock Financial Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; padding: 0; }
+    .container { max-width: 900px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px; }
+    h1 { margin-top: 0; font-size: 2rem; }
+    #searchSection { display: flex; gap: 8px; margin-bottom: 16px; }
+    #stockSymbol { flex: 1; padding: 8px; font-size: 1rem; }
+    #searchBtn { padding: 8px 18px; font-size: 1rem; cursor: pointer; }
+    #errorMessage { color: #b00; margin-bottom: 10px; }
+    .hidden { display: none !important; }
+    #companyInfo { margin: 18px 0 8px 0; }
+    #companyName { font-weight: bold; font-size: 1.2rem; }
+    #companyDetails { font-size: 0.98rem; color: #555; }
+    #tabContainer { display: flex; margin: 22px 0 10px 0; gap: 12px; }
+    .tab { padding: 6px 16px; border-radius: 4px 4px 0 0; background: #eee; cursor: pointer; }
+    .tab.active { background: #2979ff; color: #fff; }
+    #tableContainer { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 0; background: #fcfcfe; }
+    th, td { border: 1px solid #ddd; padding: 7px 10px; text-align: right; }
+    th { background: #f2f6fa; color: #2979ff; }
+    td:first-child, th:first-child { text-align: left; }
+    #loading { margin: 18px 0; }
+    @media (max-width: 600px) {
+      .container { padding: 8px; }
+      #searchSection { flex-direction: column; }
+      #tabContainer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Stock Financial Viewer</h1>
+    <div id="searchSection">
+      <input type="text" id="stockSymbol" placeholder="Enter stock symbol (e.g. AAPL)" autocomplete="off" />
+      <button id="searchBtn">Search</button>
+    </div>
+    <div id="errorMessage" class="hidden"></div>
+    <div id="companyInfo" class="hidden">
+      <div id="companyName"></div>
+      <div id="companyDetails"></div>
+    </div>
+    <div id="tabContainer" class="hidden">
+      <div class="tab active" data-tab="income">Income Statement</div>
+      <div class="tab" data-tab="balance">Balance Sheet</div>
+      <div class="tab" data-tab="cashflow">Cash Flow</div>
+      <div class="tab" data-tab="ratios">Key Ratios</div>
+    </div>
+    <div id="dataContainer" class="hidden">
+      <div id="loading" class="hidden">Loading data...</div>
+      <div id="tableContainer"></div>
+    </div>
+  </div>
+  <script>
     let currentData = {};
     let currentTab = 'income';
     const API_KEY = 'BH5QY6K3JQKBEMT7';
 
-    // Format large numbers for better readability
     function formatNumber(num) {
-        if (num === null || num === undefined || num === 'None') return 'N/A';
-        const parsedNum = parseFloat(num);
-        if (isNaN(parsedNum)) return 'N/A';
-        
-        if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toFixed(2) + 'B';
-        if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toFixed(2) + 'M';
-        if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toFixed(2) + 'K';
-        return parsedNum.toFixed(2);
+      if (num === null || num === undefined || num === 'None') return 'N/A';
+      const parsedNum = parseFloat(num);
+      if (isNaN(parsedNum)) return 'N/A';
+      if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toFixed(2) + 'B';
+      if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toFixed(2) + 'M';
+      if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toFixed(2) + 'K';
+      return parsedNum.toFixed(2);
     }
 
-    // Show different data tabs
     function showTab(tabName) {
-        currentTab = tabName;
-        
-        // Update active tab
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        event.target.classList.add('active');
-
-        // Display appropriate data
-        displayData();
+      currentTab = tabName;
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.getAttribute('data-tab') === tabName) tab.classList.add('active');
+      });
+      displayData();
     }
 
-    // Fetch financial data from Alpha Vantage API
     async function fetchFinancialData() {
-        const symbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
-        
-        if (!symbol) {
-            showError('Please enter a stock symbol');
-            return;
-        }
+      const symbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
+      if (!symbol) {
+        showError('Please enter a stock symbol');
+        return;
+      }
+      hideError();
+      document.getElementById('searchBtn').disabled = true;
+      document.getElementById('searchBtn').textContent = 'Loading...';
+      document.getElementById('dataContainer').classList.remove('hidden');
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('tableContainer').innerHTML = '';
 
-        // Reset UI
-        hideError();
-        document.getElementById('searchBtn').disabled = true;
-        document.getElementById('searchBtn').textContent = 'Loading...';
-        document.getElementById('dataContainer').classList.remove('hidden');
-        document.getElementById('loading').classList.remove('hidden');
-        document.getElementById('tableContainer').innerHTML = '';
+      try {
+        const [overview, income, balance, cashflow] = await Promise.all([
+          fetchCompanyOverview(symbol),
+          fetchIncomeStatement(symbol),
+          fetchBalanceSheet(symbol),
+          fetchCashFlow(symbol)
+        ]);
 
-        try {
-            // Fetch all required data from Alpha Vantage
-            const [overview, income, balance, cashflow] = await Promise.all([
-                fetchCompanyOverview(symbol),
-                fetchIncomeStatement(symbol),
-                fetchBalanceSheet(symbol),
-                fetchCashFlow(symbol)
-            ]);
+        processFinancialData(overview, income, balance, cashflow);
 
-            // Process and store the data
-            processFinancialData(overview, income, balance, cashflow);
-            
-            // Show company info
-            document.getElementById('companyInfo').classList.remove('hidden');
-            document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
-            document.getElementById('companyDetails').textContent = 
-                `${overview.Sector || 'N/A'} | Market Cap: ${formatNumber(overview.MarketCapitalization)} | Exchange: ${overview.Exchange || 'N/A'}`;
-            
-            // Show tabs
-            document.getElementById('tabContainer').classList.remove('hidden');
-            
-            // Display data
-            displayData();
-            
-        } catch (error) {
-            showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
-            console.error('Error:', error);
-            document.getElementById('companyInfo').classList.add('hidden');
-            document.getElementById('tabContainer').classList.add('hidden');
-        } finally {
-            document.getElementById('searchBtn').disabled = false;
-            document.getElementById('searchBtn').textContent = 'Search';
-            document.getElementById('loading').classList.add('hidden');
-        }
+        document.getElementById('companyInfo').classList.remove('hidden');
+        document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
+        document.getElementById('companyDetails').textContent =
+          `${overview.Sector || 'N/A'} | Market Cap: ${formatNumber(overview.MarketCapitalization)} | Exchange: ${overview.Exchange || 'N/A'}`;
+
+        document.getElementById('tabContainer').classList.remove('hidden');
+        displayData();
+
+      } catch (error) {
+        showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
+        console.error('Error:', error);
+        document.getElementById('companyInfo').classList.add('hidden');
+        document.getElementById('tabContainer').classList.add('hidden');
+      } finally {
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('searchBtn').textContent = 'Search';
+        document.getElementById('loading').classList.add('hidden');
+      }
     }
 
-    // Fetch company overview
     async function fetchCompanyOverview(symbol) {
-        const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data['Error Message'] || Object.keys(data).length === 0) {
-            throw new Error('Invalid symbol or API error');
-        }
-        
-        return data;
+      const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
+      return data;
     }
 
-    // Fetch income statement data
     async function fetchIncomeStatement(symbol) {
-        const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data['Error Message'] || !data.annualReports) {
-            throw new Error('Unable to fetch income statement data');
-        }
-        
-        return data.annualReports;
+      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
+      return data.annualReports;
     }
 
-    // Fetch balance sheet data
     async function fetchBalanceSheet(symbol) {
-        const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data['Error Message'] || !data.annualReports) {
-            throw new Error('Unable to fetch balance sheet data');
-        }
-        
-        return data.annualReports;
+      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
+      return data.annualReports;
     }
 
-    // Fetch cash flow data
     async function fetchCashFlow(symbol) {
-        const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data['Error Message'] || !data.annualReports) {
-            throw new Error('Unable to fetch cash flow data');
-        }
-        
-        return data.annualReports;
+      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch cash flow data');
+      return data.annualReports;
     }
 
-    // Process the fetched data into our format
     function processFinancialData(overview, income, balance, cashflow) {
-        // Extract years from income statement (usually has the most complete data)
-        const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear());
-        
-        // Initialize data structure
-        currentData = {
-            years: years,
-            income: {
-                'Revenue': [],
-                'Gross Profit': [],
-                'Operating Income': [],
-                'EBITDA': [],
-                'Net Income': [],
-                'EPS (Diluted)': []
-            },
-            balance: {
-                'Total Assets': [],
-                'Current Assets': [],
-                'Total Liabilities': [],
-                'Current Liabilities': [],
-                'Shareholders Equity': [],
-                'Cash & Equivalents': [],
-                'Total Debt': [],
-                'Retained Earnings': []
-            },
-            cashflow: {
-                'Operating Cash Flow': [],
-                'Investing Cash Flow': [],
-                'Financing Cash Flow': [],
-                'Free Cash Flow': [],
-                'Capital Expenditures': [],
-                'Dividends Paid': []
-            },
-            ratios: {
-                'P/E Ratio': [],
-                'Price/Book': [],
-                'Profit Margin %': [],
-                'Operating Margin %': [],
-                'ROE %': [],
-                'ROA %': [],
-                'Current Ratio': [],
-                'Debt to Equity': []
-            }
-        };
+      const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear());
+      currentData = {
+        years: years,
+        income: {
+          'Revenue': [],
+          'Gross Profit': [],
+          'Operating Income': [],
+          'EBITDA': [],
+          'Net Income': [],
+          'EPS (Diluted)': []
+        },
+        balance: {
+          'Total Assets': [],
+          'Current Assets': [],
+          'Total Liabilities': [],
+          'Current Liabilities': [],
+          'Shareholders Equity': [],
+          'Cash & Equivalents': [],
+          'Total Debt': [],
+          'Retained Earnings': []
+        },
+        cashflow: {
+          'Operating Cash Flow': [],
+          'Investing Cash Flow': [],
+          'Financing Cash Flow': [],
+          'Free Cash Flow': [],
+          'Capital Expenditures': [],
+          'Dividends Paid': []
+        },
+        ratios: {
+          'P/E Ratio': [],
+          'Price/Book': [],
+          'Profit Margin %': [],
+          'Operating Margin %': [],
+          'ROE %': [],
+          'ROA %': [],
+          'Current Ratio': [],
+          'Debt to Equity': []
+        }
+      };
 
-        // Process Income Statement Data
-        income.forEach((report, index) => {
-            currentData.income['Revenue'][index] = report.totalRevenue;
-            currentData.income['Gross Profit'][index] = report.grossProfit;
-            currentData.income['Operating Income'][index] = report.operatingIncome;
-            currentData.income['EBITDA'][index] = report.ebitda;
-            currentData.income['Net Income'][index] = report.netIncome;
-            currentData.income['EPS (Diluted)'][index] = report.dilutedEPS;
-        });
+      income.forEach((report, index) => {
+        currentData.income['Revenue'][index] = report.totalRevenue;
+        currentData.income['Gross Profit'][index] = report.grossProfit;
+        currentData.income['Operating Income'][index] = report.operatingIncome;
+        currentData.income['EBITDA'][index] = report.ebitda;
+        currentData.income['Net Income'][index] = report.netIncome;
+        currentData.income['EPS (Diluted)'][index] = report.dilutedEPS;
+      });
 
-        // Process Balance Sheet Data
-        balance.forEach((report, index) => {
-            currentData.balance['Total Assets'][index] = report.totalAssets;
-            currentData.balance['Current Assets'][index] = report.totalCurrentAssets;
-            currentData.balance['Total Liabilities'][index] = report.totalLiabilities;
-            currentData.balance['Current Liabilities'][index] = report.totalCurrentLiabilities;
-            currentData.balance['Shareholders Equity'][index] = report.totalShareholderEquity;
-            currentData.balance['Cash & Equivalents'][index] = report.cashAndCashEquivalentsAtCarryingValue;
-            currentData.balance['Total Debt'][index] = report.shortLongTermDebtTotal || 
-                (parseFloat(report.shortTermDebt || 0) + parseFloat(report.longTermDebt || 0));
-            currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
-        });
+      balance.forEach((report, index) => {
+        currentData.balance['Total Assets'][index] = report.totalAssets;
+        currentData.balance['Current Assets'][index] = report.totalCurrentAssets;
+        currentData.balance['Total Liabilities'][index] = report.totalLiabilities;
+        currentData.balance['Current Liabilities'][index] = report.totalCurrentLiabilities;
+        currentData.balance['Shareholders Equity'][index] = report.totalShareholderEquity;
+        currentData.balance['Cash & Equivalents'][index] = report.cashAndCashEquivalentsAtCarryingValue;
+        currentData.balance['Total Debt'][index] = report.shortLongTermDebtTotal || 
+          (parseFloat(report.shortTermDebt || 0) + parseFloat(report.longTermDebt || 0));
+        currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
+      });
 
-        // Process Cash Flow Data
-        cashflow.forEach((report, index) => {
-            currentData.cashflow['Operating Cash Flow'][index] = report.operatingCashflow;
-            currentData.cashflow['Investing Cash Flow'][index] = report.cashflowFromInvestment;
-            currentData.cashflow['Financing Cash Flow'][index] = report.cashflowFromFinancing;
-            currentData.cashflow['Capital Expenditures'][index] = report.capitalExpenditures;
-            currentData.cashflow['Dividends Paid'][index] = report.dividendPayout;
-            
-            // Calculate Free Cash Flow
-            const opcf = parseFloat(report.operatingCashflow || 0);
-            const capex = parseFloat(report.capitalExpenditures || 0);
-            currentData.cashflow['Free Cash Flow'][index] = opcf - Math.abs(capex);
-        });
+      cashflow.forEach((report, index) => {
+        currentData.cashflow['Operating Cash Flow'][index] = report.operatingCashflow;
+        currentData.cashflow['Investing Cash Flow'][index] = report.cashflowFromInvestment;
+        currentData.cashflow['Financing Cash Flow'][index] = report.cashflowFromFinancing;
+        currentData.cashflow['Capital Expenditures'][index] = report.capitalExpenditures;
+        currentData.cashflow['Dividends Paid'][index] = report.dividendPayout;
+        const opcf = parseFloat(report.operatingCashflow || 0);
+        const capex = parseFloat(report.capitalExpenditures || 0);
+        currentData.cashflow['Free Cash Flow'][index] = opcf - Math.abs(capex);
+      });
 
-        // Calculate Financial Ratios
-        income.forEach((incomeReport, index) => {
-            const balanceReport = balance[index];
-            
-            if (balanceReport) {
-                // P/E Ratio (using current from overview)
-                currentData.ratios['P/E Ratio'][index] = index === 0 ? overview.PERatio : 'N/A';
-                currentData.ratios['Price/Book'][index] = index === 0 ? overview.PriceToBookRatio : 'N/A';
-                
-                // Profit Margin
-                const revenue = parseFloat(incomeReport.totalRevenue);
-                const netIncome = parseFloat(incomeReport.netIncome);
-                currentData.ratios['Profit Margin %'][index] = revenue ? (netIncome / revenue * 100) : 'N/A';
-                
-                // Operating Margin
-                const operatingIncome = parseFloat(incomeReport.operatingIncome);
-                currentData.ratios['Operating Margin %'][index] = revenue ? (operatingIncome / revenue * 100) : 'N/A';
-                
-                // ROE
-                const equity = parseFloat(balanceReport.totalShareholderEquity);
-                currentData.ratios['ROE %'][index] = equity ? (netIncome / equity * 100) : 'N/A';
-                
-                // ROA
-                const assets = parseFloat(balanceReport.totalAssets);
-                currentData.ratios['ROA %'][index] = assets ? (netIncome / assets * 100) : 'N/A';
-                
-                // Current Ratio
-                const currentAssets = parseFloat(balanceReport.totalCurrentAssets);
-                const currentLiabilities = parseFloat(balanceReport.totalCurrentLiabilities);
-                currentData.ratios['Current Ratio'][index] = currentLiabilities ? (currentAssets / currentLiabilities) : 'N/A';
-                
-                // Debt to Equity
-                const totalDebt = parseFloat(balanceReport.shortLongTermDebtTotal || 0);
-                currentData.ratios['Debt to Equity'][index] = equity ? (totalDebt / equity) : 'N/A';
-            }
-        });
+      income.forEach((incomeReport, index) => {
+        const balanceReport = balance[index];
+        if (balanceReport) {
+          currentData.ratios['P/E Ratio'][index] = index === 0 ? overview.PERatio : 'N/A';
+          currentData.ratios['Price/Book'][index] = index === 0 ? overview.PriceToBookRatio : 'N/A';
+          const revenue = parseFloat(incomeReport.totalRevenue);
+          const netIncome = parseFloat(incomeReport.netIncome);
+          currentData.ratios['Profit Margin %'][index] = revenue ? (netIncome / revenue * 100) : 'N/A';
+          const operatingIncome = parseFloat(incomeReport.operatingIncome);
+          currentData.ratios['Operating Margin %'][index] = revenue ? (operatingIncome / revenue * 100) : 'N/A';
+          const equity = parseFloat(balanceReport.totalShareholderEquity);
+          currentData.ratios['ROE %'][index] = equity ? (netIncome / equity * 100) : 'N/A';
+          const assets = parseFloat(balanceReport.totalAssets);
+          currentData.ratios['ROA %'][index] = assets ? (netIncome / assets * 100) : 'N/A';
+          const currentAssets = parseFloat(balanceReport.totalCurrentAssets);
+          const currentLiabilities = parseFloat(balanceReport.totalCurrentLiabilities);
+          currentData.ratios['Current Ratio'][index] = currentLiabilities ? (currentAssets / currentLiabilities) : 'N/A';
+          const totalDebt = parseFloat(balanceReport.shortLongTermDebtTotal || 0);
+          currentData.ratios['Debt to Equity'][index] = equity ? (totalDebt / equity) : 'N/A';
+        }
+      });
     }
 
-    // Display financial data in table format
     function displayData() {
-        const tableContainer = document.getElementById('tableContainer');
-        const data = currentData[currentTab];
-        const years = currentData.years;
-
-        if (!data || years.length === 0) {
-            tableContainer.innerHTML = '<p>No data available for this section.</p>';
-            return;
-        }
-
-        let html = '<table>';
-        
-        // Header row with years
-        html += '<tr><th>Metric</th>';
-        years.forEach(year => {
-            html += `<th>${year}</th>`;
+      const tableContainer = document.getElementById('tableContainer');
+      const data = currentData[currentTab];
+      const years = currentData.years;
+      if (!data || years.length === 0) {
+        tableContainer.innerHTML = '<p>No data available for this section.</p>';
+        return;
+      }
+      let html = '<table>';
+      html += '<tr><th>Metric</th>';
+      years.forEach(year => { html += `<th>${year}</th>`; });
+      html += '</tr>';
+      Object.keys(data).forEach(metric => {
+        html += `<tr><td>${metric}</td>`;
+        data[metric].forEach(value => {
+          if (currentTab === 'ratios' && metric.includes('%')) {
+            const numValue = parseFloat(value);
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) + '%' : 'N/A'}</td>`;
+          } else if (currentTab === 'ratios') {
+            const numValue = parseFloat(value);
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
+          } else {
+            html += `<td>${formatNumber(value)}</td>`;
+          }
         });
         html += '</tr>';
-
-        // Data rows
-        Object.keys(data).forEach(metric => {
-            html += `<tr><td>${metric}</td>`;
-            data[metric].forEach(value => {
-                if (currentTab === 'ratios' && metric.includes('%')) {
-                    // For percentage ratios, format as percentage
-                    const numValue = parseFloat(value);
-                    html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) + '%' : 'N/A'}</td>`;
-                } else if (currentTab === 'ratios') {
-                    // For non-percentage ratios, show as decimal
-                    const numValue = parseFloat(value);
-                    html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
-                } else {
-                    // For financial values, format as currency
-                    html += `<td>${formatNumber(value)}</td>`;
-                }
-            });
-            html += '</tr>';
-        });
-
-        html += '</table>';
-        tableContainer.innerHTML = html;
+      });
+      html += '</table>';
+      tableContainer.innerHTML = html;
     }
 
-    // Error handling
     function showError(message) {
-        const errorElement = document.getElementById('errorMessage');
-        errorElement.textContent = message;
-        errorElement.classList.remove('hidden');
+      const errorElement = document.getElementById('errorMessage');
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
     }
-
     function hideError() {
-        document.getElementById('errorMessage').classList.add('hidden');
+      document.getElementById('errorMessage').classList.add('hidden');
     }
 
-    // Allow Enter key to search
+    document.getElementById('searchBtn').addEventListener('click', fetchFinancialData);
     document.getElementById('stockSymbol').addEventListener('keypress', function(event) {
-        if (event.key === 'Enter') {
-            fetchFinancialData();
-        }
+      if (event.key === 'Enter') fetchFinancialData();
     });
-</script>
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        showTab(this.getAttribute('data-tab'));
+      });
+    });
+  </script>
+</body>
+</html>
