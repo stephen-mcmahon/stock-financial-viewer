@@ -6,27 +6,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; padding: 0; }
-    .container { max-width: 900px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px; }
-    h1 { margin-top: 0; font-size: 2rem; }
-    #searchSection { display: flex; gap: 8px; margin-bottom: 16px; }
-    #stockSymbol { flex: 1; padding: 8px; font-size: 1rem; }
-    #searchBtn { padding: 8px 18px; font-size: 1rem; cursor: pointer; }
-    #errorMessage { color: #b00; margin-bottom: 10px; }
+    .container { 
+      max-width: 1400px;   /* Expanded from 900px */
+      margin: 40px auto; 
+      background: #fff; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px #0001; 
+      padding: 48px;       /* Increased padding */
+    }
+    h1 { margin-top: 0; font-size: 2.3rem; }
+    #searchSection { display: flex; gap: 12px; margin-bottom: 18px; }
+    #stockSymbol { flex: 1; padding: 10px; font-size: 1.15rem; }
+    #searchBtn { padding: 10px 22px; font-size: 1.15rem; cursor: pointer; }
+    #errorMessage { color: #b00; margin-bottom: 12px; }
     .hidden { display: none !important; }
-    #companyInfo { margin: 18px 0 8px 0; }
-    #companyName { font-weight: bold; font-size: 1.2rem; }
-    #companyDetails { font-size: 0.98rem; color: #555; }
-    #tabContainer { display: flex; margin: 22px 0 10px 0; gap: 12px; }
-    .tab { padding: 6px 16px; border-radius: 4px 4px 0 0; background: #eee; cursor: pointer; }
+    #companyInfo { margin: 22px 0 10px 0; }
+    #companyName { font-weight: bold; font-size: 1.35rem; }
+    #companyDetails { font-size: 1.1rem; color: #555; }
+    #tabContainer { display: flex; margin: 26px 0 14px 0; gap: 16px; }
+    .tab { padding: 8px 20px; border-radius: 4px 4px 0 0; background: #eee; cursor: pointer; font-size: 1.08rem; }
     .tab.active { background: #2979ff; color: #fff; }
     #tableContainer { overflow-x: auto; }
-    table { border-collapse: collapse; width: 100%; margin: 0; background: #fcfcfe; }
-    th, td { border: 1px solid #ddd; padding: 7px 10px; text-align: right; }
+    table { border-collapse: collapse; width: 100%; margin: 0; background: #fcfcfe; font-size: 1.12rem; }
+    th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: right; }
     th { background: #f2f6fa; color: #2979ff; }
     td:first-child, th:first-child { text-align: left; }
-    #loading { margin: 18px 0; }
-    @media (max-width: 600px) {
-      .container { padding: 8px; }
+    #loading { margin: 22px 0; }
+    @media (max-width: 900px) {
+      .container { padding: 16px; max-width: 100%; }
       #searchSection { flex-direction: column; }
       #tabContainer { flex-direction: column; }
     }
@@ -154,8 +161,11 @@
       return data.annualReports;
     }
 
+    // ==== CHANGES FOR OLDEST-TO-NEWEST YEARS DISPLAY BEGIN ====
     function processFinancialData(overview, income, balance, cashflow) {
-      const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear());
+      // Get years and REVERSE them to go from oldest to newest
+      const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
+
       currentData = {
         years: years,
         income: {
@@ -196,6 +206,7 @@
         }
       };
 
+      // Fill in the data arrays (in original order)
       income.forEach((report, index) => {
         currentData.income['Revenue'][index] = report.totalRevenue;
         currentData.income['Gross Profit'][index] = report.grossProfit;
@@ -212,7 +223,7 @@
         currentData.balance['Current Liabilities'][index] = report.totalCurrentLiabilities;
         currentData.balance['Shareholders Equity'][index] = report.totalShareholderEquity;
         currentData.balance['Cash & Equivalents'][index] = report.cashAndCashEquivalentsAtCarryingValue;
-        currentData.balance['Total Debt'][index] = report.shortLongTermDebtTotal || 
+        currentData.balance['Total Debt'][index] = report.shortLongTermDebtTotal ||
           (parseFloat(report.shortTermDebt || 0) + parseFloat(report.longTermDebt || 0));
         currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
       });
@@ -249,7 +260,14 @@
           currentData.ratios['Debt to Equity'][index] = equity ? (totalDebt / equity) : 'N/A';
         }
       });
+
+      // Reverse all data arrays so they match the oldest-to-newest order of years
+      Object.values(currentData.income).forEach(arr => arr.reverse());
+      Object.values(currentData.balance).forEach(arr => arr.reverse());
+      Object.values(currentData.cashflow).forEach(arr => arr.reverse());
+      Object.values(currentData.ratios).forEach(arr => arr.reverse());
     }
+    // ==== CHANGES FOR OLDEST-TO-NEWEST YEARS DISPLAY END ====
 
     function displayData() {
       const tableContainer = document.getElementById('tableContainer');
