@@ -154,47 +154,88 @@
       padding: 6px 14px;
       background: #f8f9fb;
     }
-    table {
+    /* Quarterly Section */
+    #quarterlySection {
+      margin: 48px 44px 0 44px;
+      padding: 32px 18px 26px 18px;
+      background: var(--card);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    #quarterlyTabs {
+      display: flex;
+      gap: 3px;
+      border-bottom: 1.5px solid var(--border);
+      margin-bottom: 18px;
+    }
+    .qtab {
+      font-size: 1.03rem;
+      padding: 8px 22px 8px 22px;
+      border: none;
+      background: none;
+      color: #444;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: background 0.2s, color 0.2s;
+      border-bottom: 2.5px solid transparent;
+      outline: none;
+      position: relative;
+      top: 2px;
+    }
+    .qtab.active {
+      background: var(--card);
+      color: var(--primary);
+      border-bottom: 2.5px solid var(--primary);
+      z-index: 1;
+    }
+    #quarterlyTableContainer {
+      overflow-x: auto;
+      border-radius: 6px;
+      background: var(--card);
+    }
+    #quarterlyTable {
       border-collapse: collapse;
       width: 100%;
-      font-size: 1.09rem;
+      font-size: 1.01rem;
       min-width: 700px;
       background: var(--card);
     }
-    th, td {
+    #quarterlyTable th, #quarterlyTable td {
       border: 1px solid var(--border);
-      padding: 12px 14px;
+      padding: 9px 9px;
       text-align: right;
     }
-    th {
+    #quarterlyTable th {
       background: var(--primary-light);
       color: var(--primary);
       font-weight: 600;
-      font-size: 1.08rem;
+      font-size: 1.01rem;
       position: sticky;
       top: 0;
       z-index: 2;
     }
-    td:first-child, th:first-child {
+    #quarterlyTable td:first-child, #quarterlyTable th:first-child {
       text-align: left;
       background: #f6f8fa;
       position: sticky;
       left: 0;
       z-index: 3;
     }
-    tr:hover td {
+    #quarterlyTable tr:hover td {
       background: #f7fbff;
     }
     @media (max-width: 900px) {
       .container { max-width: 100%; border-radius: 0; box-shadow: none; }
-      header, #searchSection, #tabContainer, #dataContainer { margin: 0 12px; }
+      header, #searchSection, #tabContainer, #dataContainer, #quarterlySection { margin: 0 12px; }
       header { padding-left: 12px; padding-right: 12px; }
       #tableContainer, #graphContainer { margin: 18px 0 0 0; }
       #netIncomeChart { min-width: 0; width: 100%; }
       #metricSelectorContainer { margin-left: 0; }
+      #quarterlySection { padding-left: 6px; padding-right: 6px; }
     }
   </style>
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -227,6 +268,19 @@
         <canvas id="netIncomeChart"></canvas>
       </div>
     </div>
+    <!-- Quarterly Section -->
+    <section id="quarterlySection" class="hidden">
+      <h2 style="margin-top:0">Quarterly Financials</h2>
+      <div id="quarterlyTabs">
+        <button class="qtab active" data-qtab="qincome">Income Statement</button>
+        <button class="qtab" data-qtab="qbalance">Balance Sheet</button>
+        <button class="qtab" data-qtab="qcashflow">Cash Flow</button>
+      </div>
+      <div id="quarterlyTableContainer">
+        <div id="quarterlyLoading" class="hidden" style="margin: 18px 0; text-align:center;">Loading quarterly data...</div>
+        <table id="quarterlyTable"></table>
+      </div>
+    </section>
   </div>
   <script>
     let currentData = {};
@@ -234,7 +288,17 @@
     let chartInstance = null;
     const API_KEY = 'BH5QY6K3JQKBEMT7';
 
-    // Metric options for income statement
+    // Quarterly data objects
+    let quarterlyData = {
+      qincome: null,
+      qbalance: null,
+      qcashflow: null,
+      years: null,
+      dates: null
+    };
+    let currentQTab = 'qincome';
+
+    // Metric options for income statement (annual)
     const incomeMetrics = [
       'Revenue',
       'Gross Profit',
@@ -284,13 +348,19 @@
       document.getElementById('loading').classList.remove('hidden');
       document.getElementById('tableContainer').innerHTML = '';
       document.getElementById('graphContainer').classList.add('hidden');
+      document.getElementById('quarterlySection').classList.add('hidden');
+      document.getElementById('quarterlyLoading').classList.remove('hidden');
+      document.getElementById('quarterlyTable').innerHTML = '';
 
       try {
-        const [overview, income, balance, cashflow] = await Promise.all([
+        const [overview, income, balance, cashflow, qincome, qbalance, qcashflow] = await Promise.all([
           fetchCompanyOverview(symbol),
           fetchIncomeStatement(symbol),
           fetchBalanceSheet(symbol),
-          fetchCashFlow(symbol)
+          fetchCashFlow(symbol),
+          fetchQuarterlyIncome(symbol),
+          fetchQuarterlyBalance(symbol),
+          fetchQuarterlyCashFlow(symbol)
         ]);
 
         const fiscalDates = balance.map(report => report.fiscalDateEnding);
@@ -322,12 +392,19 @@
         updateMetricSelector();
         drawMetricChart();
 
+        // Handle quarterly data section
+        processQuarterlyData(qincome, qbalance, qcashflow);
+        document.getElementById('quarterlySection').classList.remove('hidden');
+        document.getElementById('quarterlyLoading').classList.add('hidden');
+        displayQuarterlyTable();
+
       } catch (error) {
         showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
         document.getElementById('companyName').textContent = "Financial Data Viewer";
         document.getElementById('companyDetails').textContent = "";
         document.getElementById('tabContainer').classList.add('hidden');
         document.getElementById('graphContainer').classList.add('hidden');
+        document.getElementById('quarterlySection').classList.add('hidden');
       } finally {
         document.getElementById('searchBtn').disabled = false;
         document.getElementById('searchBtn').textContent = 'Search';
@@ -342,7 +419,6 @@
       if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
       return data;
     }
-
     async function fetchIncomeStatement(symbol) {
       const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -350,7 +426,6 @@
       if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
       return data.annualReports;
     }
-
     async function fetchBalanceSheet(symbol) {
       const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
@@ -358,13 +433,34 @@
       if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
       return data.annualReports;
     }
-
     async function fetchCashFlow(symbol) {
       const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
       const response = await fetch(url);
       const data = await response.json();
       if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch cash flow data');
       return data.annualReports;
+    }
+    // Quarterly fetch
+    async function fetchQuarterlyIncome(symbol) {
+      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly income statement data');
+      return data.quarterlyReports;
+    }
+    async function fetchQuarterlyBalance(symbol) {
+      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly balance sheet data');
+      return data.quarterlyReports;
+    }
+    async function fetchQuarterlyCashFlow(symbol) {
+      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly cash flow data');
+      return data.quarterlyReports;
     }
 
     async function getYearEndPrices(symbol, fiscalDates, apiKey) {
@@ -505,6 +601,93 @@
       Object.values(currentData.ratios).forEach(arr => arr.reverse());
     }
 
+    // ---------- QUARTERLY DATA ----------
+    function processQuarterlyData(qincome, qbalance, qcashflow) {
+      // get all unique quarter dates (most recent first)
+      const qDates = qincome.map(r => r.fiscalDateEnding);
+      quarterlyData.dates = qDates;
+      // Income
+      quarterlyData.qincome = {
+        'Revenue': [],
+        'Gross Profit': [],
+        'Operating Income': [],
+        'EBITDA': [],
+        'Net Income': [],
+        'EPS (Diluted)': []
+      };
+      qincome.forEach((report, idx) => {
+        quarterlyData.qincome['Revenue'][idx] = report.totalRevenue;
+        quarterlyData.qincome['Gross Profit'][idx] = report.grossProfit;
+        quarterlyData.qincome['Operating Income'][idx] = report.operatingIncome;
+        quarterlyData.qincome['EBITDA'][idx] = report.ebitda;
+        quarterlyData.qincome['Net Income'][idx] = report.netIncome;
+        quarterlyData.qincome['EPS (Diluted)'][idx] = report.dilutedEPS;
+      });
+      // Balance
+      quarterlyData.qbalance = {
+        'Total Assets': [],
+        'Current Assets': [],
+        'Total Liabilities': [],
+        'Current Liabilities': [],
+        'Shareholders Equity': [],
+        'Cash & Equivalents': [],
+        'Total Debt': [],
+        'Retained Earnings': []
+      };
+      qbalance.forEach((report, idx) => {
+        quarterlyData.qbalance['Total Assets'][idx] = report.totalAssets;
+        quarterlyData.qbalance['Current Assets'][idx] = report.totalCurrentAssets;
+        quarterlyData.qbalance['Total Liabilities'][idx] = report.totalLiabilities;
+        quarterlyData.qbalance['Current Liabilities'][idx] = report.totalCurrentLiabilities;
+        quarterlyData.qbalance['Shareholders Equity'][idx] = report.totalShareholderEquity;
+        quarterlyData.qbalance['Cash & Equivalents'][idx] = report.cashAndCashEquivalentsAtCarryingValue;
+        quarterlyData.qbalance['Total Debt'][idx] = report.shortLongTermDebtTotal ||
+          (parseFloat(report.shortTermDebt || 0) + parseFloat(report.longTermDebt || 0));
+        quarterlyData.qbalance['Retained Earnings'][idx] = report.retainedEarnings;
+      });
+      // Cash Flow
+      quarterlyData.qcashflow = {
+        'Operating Cash Flow': [],
+        'Investing Cash Flow': [],
+        'Financing Cash Flow': [],
+        'Free Cash Flow': [],
+        'Capital Expenditures': [],
+        'Dividends Paid': []
+      };
+      qcashflow.forEach((report, idx) => {
+        quarterlyData.qcashflow['Operating Cash Flow'][idx] = report.operatingCashflow;
+        quarterlyData.qcashflow['Investing Cash Flow'][idx] = report.cashflowFromInvestment;
+        quarterlyData.qcashflow['Financing Cash Flow'][idx] = report.cashflowFromFinancing;
+        quarterlyData.qcashflow['Capital Expenditures'][idx] = report.capitalExpenditures;
+        quarterlyData.qcashflow['Dividends Paid'][idx] = report.dividendPayout;
+        const opcf = parseFloat(report.operatingCashflow || 0);
+        const capex = parseFloat(report.capitalExpenditures || 0);
+        quarterlyData.qcashflow['Free Cash Flow'][idx] = opcf - Math.abs(capex);
+      });
+    }
+
+    function displayQuarterlyTable() {
+      // Find selected tab and keys
+      let qtab = currentQTab;
+      let qdata = quarterlyData[qtab];
+      let qdates = quarterlyData.dates;
+      if (!qdata || !qdates) {
+        document.getElementById('quarterlyTable').innerHTML = '<tr><td>No quarterly data available.</td></tr>';
+        return;
+      }
+      let html = '<tr><th>Metric</th>';
+      qdates.forEach(date => { html += `<th>${date}</th>`; });
+      html += '</tr>';
+      Object.keys(qdata).forEach(metric => {
+        html += `<tr><td>${metric}</td>`;
+        qdata[metric].forEach(val => html += `<td>${formatNumber(val)}</td>`);
+        html += '</tr>';
+      });
+      document.getElementById('quarterlyTable').innerHTML = html;
+    }
+
+    // ---------- END QUARTERLY DATA ----------
+
     function displayData() {
       const tableContainer = document.getElementById('tableContainer');
       const data = currentData[currentTab];
@@ -643,6 +826,16 @@
     });
     document.getElementById('metricSelector').addEventListener('change', function() {
       drawMetricChart();
+    });
+
+    // Quarterly section tab events
+    document.querySelectorAll('.qtab').forEach(qtab => {
+      qtab.addEventListener('click', function() {
+        document.querySelectorAll('.qtab').forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+        currentQTab = this.getAttribute('data-qtab');
+        displayQuarterlyTable();
+      });
     });
   </script>
 </body>
