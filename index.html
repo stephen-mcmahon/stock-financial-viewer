@@ -335,6 +335,94 @@
       }
     }
 
+    // Add error handling for 'Note' (rate limit) and 'Error Message'
+    async function fetchCompanyOverview(symbol) {
+      const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
+      return data;
+    }
+    async function fetchIncomeStatement(symbol) {
+      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
+      return data.annualReports;
+    }
+    async function fetchBalanceSheet(symbol) {
+      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
+      return data.annualReports;
+    }
+    async function fetchCashFlow(symbol) {
+      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch cash flow data');
+      return data.annualReports;
+    }
+    // Quarterly fetch
+    async function fetchQuarterlyIncome(symbol) {
+      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly income statement data');
+      return data.quarterlyReports;
+    }
+    async function fetchQuarterlyBalance(symbol) {
+      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly balance sheet data');
+      return data.quarterlyReports;
+    }
+    async function fetchQuarterlyCashFlow(symbol) {
+      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly cash flow data');
+      return data.quarterlyReports;
+    }
+
+    async function getYearEndPrices(symbol, fiscalDates, apiKey) {
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Note']) throw new Error(data['Note']);
+      if (!data['Time Series (Daily)']) throw new Error('Unable to fetch price history');
+      const daily = data['Time Series (Daily)'];
+      let prices = [];
+      for (const date of fiscalDates) {
+        let checkDate = date;
+        let found = false, attempts = 0;
+        while (!found && attempts < 30) {
+          if (daily[checkDate]) {
+            prices.push(daily[checkDate]['5. adjusted close']);
+            found = true;
+          } else {
+            const d = new Date(checkDate);
+            d.setDate(d.getDate() - 1);
+            checkDate = d.toISOString().slice(0, 10);
+            attempts++;
+          }
+        }
+        if (!found) {
+          prices.push('N/A');
+        }
+      }
+      return prices;
+    }
+
     async function fetchFinancialData() {
       const symbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
       if (!symbol) {
@@ -399,7 +487,7 @@
         displayQuarterlyTable();
 
       } catch (error) {
-        showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
+        showError(error.message || 'Error fetching data.');
         document.getElementById('companyName').textContent = "Financial Data Viewer";
         document.getElementById('companyDetails').textContent = "";
         document.getElementById('tabContainer').classList.add('hidden');
@@ -410,85 +498,6 @@
         document.getElementById('searchBtn').textContent = 'Search';
         document.getElementById('loading').classList.add('hidden');
       }
-    }
-
-    async function fetchCompanyOverview(symbol) {
-      const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
-      return data;
-    }
-    async function fetchIncomeStatement(symbol) {
-      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
-      return data.annualReports;
-    }
-    async function fetchBalanceSheet(symbol) {
-      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
-      return data.annualReports;
-    }
-    async function fetchCashFlow(symbol) {
-      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch cash flow data');
-      return data.annualReports;
-    }
-    // Quarterly fetch
-    async function fetchQuarterlyIncome(symbol) {
-      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly income statement data');
-      return data.quarterlyReports;
-    }
-    async function fetchQuarterlyBalance(symbol) {
-      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly balance sheet data');
-      return data.quarterlyReports;
-    }
-    async function fetchQuarterlyCashFlow(symbol) {
-      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data['Error Message'] || !data.quarterlyReports) throw new Error('Unable to fetch quarterly cash flow data');
-      return data.quarterlyReports;
-    }
-
-    async function getYearEndPrices(symbol, fiscalDates, apiKey) {
-      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
-      const response = await fetch(url);
-      const data = await response.json();
-      const daily = data['Time Series (Daily)'] || {};
-      let prices = [];
-
-      for (const date of fiscalDates) {
-        let checkDate = date;
-        let found = false, attempts = 0;
-        while (!found && attempts < 30) {
-          if (daily[checkDate]) {
-            prices.push(daily[checkDate]['5. adjusted close']);
-            found = true;
-          } else {
-            const d = new Date(checkDate);
-            d.setDate(d.getDate() - 1);
-            checkDate = d.toISOString().slice(0, 10);
-            attempts++;
-          }
-        }
-        if (!found) {
-          prices.push('N/A');
-        }
-      }
-      return prices;
     }
 
     function processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps) {
