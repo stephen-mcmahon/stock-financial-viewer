@@ -136,6 +136,24 @@
       margin: 0 auto;
       background: #fff;
     }
+    #metricSelectorContainer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 18px 48px;
+    }
+    #metricSelectorLabel {
+      font-size: 1.07rem;
+      color: #444;
+      font-weight: 600;
+    }
+    #metricSelector {
+      font-size: 1.07rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      background: #f8f9fb;
+    }
     table {
       border-collapse: collapse;
       width: 100%;
@@ -173,6 +191,7 @@
       header { padding-left: 12px; padding-right: 12px; }
       #tableContainer, #graphContainer { margin: 18px 0 0 0; }
       #netIncomeChart { min-width: 0; width: 100%; }
+      #metricSelectorContainer { margin-left: 0; }
     }
   </style>
   <!-- Chart.js CDN -->
@@ -201,6 +220,10 @@
       <div id="loading" class="hidden">Loading data...</div>
       <div id="tableContainer"></div>
       <div id="graphContainer" class="hidden">
+        <div id="metricSelectorContainer">
+          <span id="metricSelectorLabel">Chart metric:</span>
+          <select id="metricSelector"></select>
+        </div>
         <canvas id="netIncomeChart"></canvas>
       </div>
     </div>
@@ -210,6 +233,16 @@
     let currentTab = 'income';
     let chartInstance = null;
     const API_KEY = 'BH5QY6K3JQKBEMT7';
+
+    // Metric options for income statement
+    const incomeMetrics = [
+      'Revenue',
+      'Gross Profit',
+      'Operating Income',
+      'EBITDA',
+      'Net Income',
+      'EPS (Diluted)',
+    ];
 
     function formatNumber(num) {
       if (num === null || num === undefined || num === 'None') return 'N/A';
@@ -231,7 +264,8 @@
       // Only show graph on income tab
       if (tabName === "income") {
         document.getElementById('graphContainer').classList.remove('hidden');
-        drawNetIncomeChart();
+        updateMetricSelector();
+        drawMetricChart();
       } else {
         document.getElementById('graphContainer').classList.add('hidden');
       }
@@ -283,9 +317,10 @@
         document.getElementById('tabContainer').classList.remove('hidden');
         document.getElementById('dataContainer').classList.remove('hidden');
         displayData();
-        // Show and draw chart for Net Income
+        // Show and draw chart for selected metric
         document.getElementById('graphContainer').classList.remove('hidden');
-        drawNetIncomeChart();
+        updateMetricSelector();
+        drawMetricChart();
 
       } catch (error) {
         showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
@@ -503,21 +538,36 @@
       tableContainer.innerHTML = html;
     }
 
-    function drawNetIncomeChart() {
-      // Only draw if on income tab and data is loaded
+    function updateMetricSelector() {
+      // Only show on Income tab
+      const selector = document.getElementById('metricSelector');
+      selector.innerHTML = '';
+      incomeMetrics.forEach(metric => {
+        const option = document.createElement('option');
+        option.value = metric;
+        option.textContent = metric;
+        selector.appendChild(option);
+      });
+      // Set Net Income as default selected if present
+      selector.value = 'Net Income';
+    }
+
+    function drawMetricChart() {
       if (!currentData || !currentData.income || !currentData.years) return;
       const years = currentData.years;
-      const netIncomeArr = currentData.income['Net Income'];
-      if (!years || !netIncomeArr) return;
+      const selector = document.getElementById('metricSelector');
+      const selectedMetric = selector.value;
+      const metricArr = currentData.income[selectedMetric];
+      if (!years || !metricArr) return;
 
-      // Filter out years where net income is missing or N/A
+      // Filter out years where metric is missing or N/A
       const labels = [];
       const data = [];
       for (let i = 0; i < years.length; i++) {
-        const ni = netIncomeArr[i];
-        if (ni !== undefined && ni !== null && ni !== "N/A" && ni !== "None" && !isNaN(parseFloat(ni))) {
+        const val = metricArr[i];
+        if (val !== undefined && val !== null && val !== "N/A" && val !== "None" && !isNaN(parseFloat(val))) {
           labels.push(years[i]);
-          data.push(parseFloat(ni));
+          data.push(parseFloat(val));
         }
       }
 
@@ -530,7 +580,7 @@
         data: {
           labels: labels,
           datasets: [{
-            label: 'Net Income',
+            label: selectedMetric,
             data: data,
             borderColor: '#1368ce',
             backgroundColor: 'rgba(19,104,206,0.15)',
@@ -547,11 +597,11 @@
           responsive: true,
           plugins: {
             legend: { display: false },
-            title: { display: true, text: 'Net Income by Year', font: { size: 18, family: "'Inter', Arial, sans-serif" } },
+            title: { display: true, text: `${selectedMetric} by Year`, font: { size: 18, family: "'Inter', Arial, sans-serif" } },
             tooltip: {
               callbacks: {
                 label: function(context) {
-                  return "Net Income: " + formatNumber(context.parsed.y);
+                  return selectedMetric + ": " + formatNumber(context.parsed.y);
                 }
               }
             }
@@ -562,7 +612,7 @@
               ticks: { font: { family: "'Inter', Arial, sans-serif" } }
             },
             y: {
-              title: { display: true, text: 'Net Income' },
+              title: { display: true, text: selectedMetric },
               ticks: {
                 font: { family: "'Inter', Arial, sans-serif" },
                 callback: function(value) { return formatNumber(value); }
@@ -590,6 +640,9 @@
       tab.addEventListener('click', function() {
         showTab(this.getAttribute('data-tab'));
       });
+    });
+    document.getElementById('metricSelector').addEventListener('change', function() {
+      drawMetricChart();
     });
   </script>
 </body>
