@@ -1,329 +1,596 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QuickFS - Financial Data Platform</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+  <meta charset="UTF-8" />
+  <title>Stock Financial Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1368ce;
+      --primary-light: #eaf3fc;
+      --bg: #f8f9fb;
+      --border: #e0e6ed;
+      --card: #fff;
+      --shadow: 0 2px 8px #00000014;
+      --radius: 10px;
+      --font: 'Inter', Arial, sans-serif;
+    }
+    html, body { margin: 0; background: var(--bg); font-family: var(--font); }
+    body { color: #222; }
+    .container {
+      max-width: 1200px;
+      margin: 56px auto 40px auto;
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 0 0 40px 0;
+      overflow: hidden;
+    }
+    header {
+      padding: 28px 44px 16px 44px;
+      border-bottom: 1px solid var(--border);
+      background: var(--primary-light);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .company-meta h1 {
+      font-size: 2.1rem;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .company-meta p {
+      margin: 4px 0 0 0;
+      font-size: 1.08rem;
+      color: #444;
+    }
+    #searchSection {
+      margin: 18px 44px 0 44px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #stockSymbol {
+      flex: 0 0 180px;
+      padding: 10px 18px;
+      font-size: 1.09rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      transition: border-color 0.2s;
+    }
+    #stockSymbol:focus { border-color: var(--primary); outline: none; }
+    #searchBtn {
+      padding: 10px 26px;
+      font-size: 1.09rem;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    #searchBtn:hover { background: #0a54ae; }
+    #errorMessage {
+      color: #c00;
+      margin: 12px 44px 0 44px;
+      font-size: 1.08rem;
+    }
+    #tabContainer {
+      margin: 24px 44px 0 44px;
+      display: flex;
+      gap: 3px;
+      border-bottom: 1.5px solid var(--border);
+    }
+    .tab {
+      font-size: 1.08rem;
+      padding: 11px 36px 10px 36px;
+      border: none;
+      background: none;
+      color: #444;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      transition: background 0.2s, color 0.2s;
+      border-bottom: 2.5px solid transparent;
+      outline: none;
+      position: relative;
+      top: 2px;
+    }
+    .tab.active {
+      background: var(--card);
+      color: var(--primary);
+      border-bottom: 2.5px solid var(--primary);
+      z-index: 1;
+    }
+    #dataContainer { margin: 0 44px; }
+    #loading { margin: 30px 0; font-size: 1.15rem; text-align: center; }
+    #tableContainer {
+      margin-top: 24px;
+      overflow-x: auto;
+      border-radius: 6px;
+      box-shadow: var(--shadow);
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    #graphContainer {
+      margin-top: 36px;
+      padding: 24px 0 0 0;
+      background: var(--card);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    #netIncomeChart {
+      width: 100%;
+      max-width: 900px;
+      min-width: 300px;
+      height: 360px;
+      display: block;
+      margin: 0 auto;
+      background: #fff;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 1.09rem;
+      min-width: 700px;
+      background: var(--card);
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: right;
+    }
+    th {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 1.08rem;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    td:first-child, th:first-child {
+      text-align: left;
+      background: #f6f8fa;
+      position: sticky;
+      left: 0;
+      z-index: 3;
+    }
+    tr:hover td {
+      background: #f7fbff;
+    }
+    @media (max-width: 900px) {
+      .container { max-width: 100%; border-radius: 0; box-shadow: none; }
+      header, #searchSection, #tabContainer, #dataContainer { margin: 0 12px; }
+      header { padding-left: 12px; padding-right: 12px; }
+      #tableContainer, #graphContainer { margin: 18px 0 0 0; }
+      #netIncomeChart { min-width: 0; width: 100%; }
+    }
+  </style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="company-meta">
+        <h1 id="companyName">Financial Data Viewer</h1>
+        <p id="companyDetails"></p>
+      </div>
+      <div id="searchSection">
+        <input type="text" id="stockSymbol" placeholder="Symbol (e.g. AAPL)" autocomplete="off" />
+        <button id="searchBtn">Search</button>
+      </div>
+    </header>
+    <div id="errorMessage" class="hidden"></div>
+    <div id="tabContainer" class="hidden">
+      <button class="tab active" data-tab="income">Income Statement</button>
+      <button class="tab" data-tab="balance">Balance Sheet</button>
+      <button class="tab" data-tab="cashflow">Cash Flow</button>
+      <button class="tab" data-tab="ratios">Key Ratios</button>
+    </div>
+    <div id="dataContainer" class="hidden">
+      <div id="loading" class="hidden">Loading data...</div>
+      <div id="tableContainer"></div>
+      <div id="graphContainer" class="hidden">
+        <canvas id="netIncomeChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <script>
+    let currentData = {};
+    let currentTab = 'income';
+    let chartInstance = null;
+    const API_KEY = 'BH5QY6K3JQKBEMT7';
+
+    function formatNumber(num) {
+      if (num === null || num === undefined || num === 'None') return 'N/A';
+      const parsedNum = parseFloat(num);
+      if (isNaN(parsedNum)) return 'N/A';
+      if (Math.abs(parsedNum) >= 1e9) return (parsedNum / 1e9).toLocaleString(undefined, {maximumFractionDigits:2}) + 'B';
+      if (Math.abs(parsedNum) >= 1e6) return (parsedNum / 1e6).toLocaleString(undefined, {maximumFractionDigits:0}) + 'M';
+      if (Math.abs(parsedNum) >= 1e3) return (parsedNum / 1e3).toLocaleString(undefined, {maximumFractionDigits:2}) + 'K';
+      return parsedNum.toFixed(2);
+    }
+
+    function showTab(tabName) {
+      currentTab = tabName;
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.getAttribute('data-tab') === tabName) tab.classList.add('active');
+      });
+      displayData();
+      // Only show graph on income tab
+      if (tabName === "income") {
+        document.getElementById('graphContainer').classList.remove('hidden');
+        drawNetIncomeChart();
+      } else {
+        document.getElementById('graphContainer').classList.add('hidden');
+      }
+    }
+
+    async function fetchFinancialData() {
+      const symbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
+      if (!symbol) {
+        showError('Please enter a stock symbol');
+        return;
+      }
+      hideError();
+      document.getElementById('searchBtn').disabled = true;
+      document.getElementById('searchBtn').textContent = 'Loading...';
+      document.getElementById('dataContainer').classList.remove('hidden');
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('tableContainer').innerHTML = '';
+      document.getElementById('graphContainer').classList.add('hidden');
+
+      try {
+        const [overview, income, balance, cashflow] = await Promise.all([
+          fetchCompanyOverview(symbol),
+          fetchIncomeStatement(symbol),
+          fetchBalanceSheet(symbol),
+          fetchCashFlow(symbol)
+        ]);
+
+        const fiscalDates = balance.map(report => report.fiscalDateEnding);
+        const sharesArray = balance.map(report => report.commonStockSharesOutstanding);
+        const yearEndPrices = await getYearEndPrices(symbol, fiscalDates, API_KEY);
+
+        const yearlyMarketCaps = [];
+        for (let i = 0; i < yearEndPrices.length; i++) {
+          const price = parseFloat(yearEndPrices[i]);
+          const shares = parseFloat(sharesArray[i]);
+          if (!isNaN(price) && !isNaN(shares)) {
+            yearlyMarketCaps[i] = (price * shares).toString();
+          } else {
+            yearlyMarketCaps[i] = 'N/A';
+          }
         }
 
-        :root {
-            --primary-blue: #0066cc;
-            --hover-blue: #0052a3;
-            --success-green: #10b981;
-            --danger-red: #ef4444;
-            --text-primary: #1a1a1a;
-            --text-secondary: #6b7280;
-            --bg-primary: #ffffff;
-            --bg-secondary: #f9fafb;
-            --border-color: #e5e7eb;
-        }
+        processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps);
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-            line-height: 1.6;
-        }
+        document.getElementById('companyName').textContent = `${symbol} - ${overview.Name || 'Company Name Not Available'}`;
+        document.getElementById('companyDetails').textContent =
+          `${overview.Sector || 'N/A'} | Market Cap: ${formatNumber(overview.MarketCapitalization)} | Exchange: ${overview.Exchange || 'N/A'}`;
 
-        /* Header Styles */
-        .header {
-            background-color: var(--bg-primary);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
+        document.getElementById('tabContainer').classList.remove('hidden');
+        document.getElementById('dataContainer').classList.remove('hidden');
+        displayData();
+        // Show and draw chart for Net Income
+        document.getElementById('graphContainer').classList.remove('hidden');
+        drawNetIncomeChart();
 
-        .header-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 16px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+      } catch (error) {
+        showError(`Error fetching data for ${symbol}. Please check the symbol and try again.`);
+        document.getElementById('companyName').textContent = "Financial Data Viewer";
+        document.getElementById('companyDetails').textContent = "";
+        document.getElementById('tabContainer').classList.add('hidden');
+        document.getElementById('graphContainer').classList.add('hidden');
+      } finally {
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('searchBtn').textContent = 'Search';
+        document.getElementById('loading').classList.add('hidden');
+      }
+    }
 
-        .logo {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--primary-blue);
-            text-decoration: none;
-        }
+    async function fetchCompanyOverview(symbol) {
+      const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || Object.keys(data).length === 0) throw new Error('Invalid symbol or API error');
+      return data;
+    }
 
-        .search-container {
-            flex: 1;
-            max-width: 400px;
-            margin: 0 40px;
-        }
+    async function fetchIncomeStatement(symbol) {
+      const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch income statement data');
+      return data.annualReports;
+    }
 
-        .search-wrapper {
-            position: relative;
-        }
+    async function fetchBalanceSheet(symbol) {
+      const url = `https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch balance sheet data');
+      return data.annualReports;
+    }
 
-        .search-input {
-            width: 100%;
-            padding: 8px 40px 8px 16px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
+    async function fetchCashFlow(symbol) {
+      const url = `https://www.alphavantage.co/query?function=CASH_FLOW&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data['Error Message'] || !data.annualReports) throw new Error('Unable to fetch cash flow data');
+      return data.annualReports;
+    }
 
-        .search-input:focus {
-            outline: none;
-            border-color: var(--primary-blue);
-        }
+    async function getYearEndPrices(symbol, fiscalDates, apiKey) {
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${symbol}&outputsize=full&apikey=${apiKey}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      const daily = data['Time Series (Daily)'] || {};
+      let prices = [];
 
-        .search-icon {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            cursor: pointer;
+      for (const date of fiscalDates) {
+        let checkDate = date;
+        let found = false, attempts = 0;
+        while (!found && attempts < 30) {
+          if (daily[checkDate]) {
+            prices.push(daily[checkDate]['5. adjusted close']);
+            found = true;
+          } else {
+            const d = new Date(checkDate);
+            d.setDate(d.getDate() - 1);
+            checkDate = d.toISOString().slice(0, 10);
+            attempts++;
+          }
         }
-
-        /* Company Header */
-        .company-header {
-            background-color: var(--bg-primary);
-            border-bottom: 1px solid var(--border-color);
+        if (!found) {
+          prices.push('N/A');
         }
+      }
+      return prices;
+    }
 
-        .company-header-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
+    function processFinancialData(overview, income, balance, cashflow, yearlyMarketCaps) {
+      const years = income.map(report => new Date(report.fiscalDateEnding).getFullYear()).reverse();
+
+      currentData = {
+        years: years,
+        income: {
+          'Revenue': [],
+          'Gross Profit': [],
+          'Operating Income': [],
+          'EBITDA': [],
+          'Net Income': [],
+          'EPS (Diluted)': []
+        },
+        balance: {
+          'Total Assets': [],
+          'Current Assets': [],
+          'Total Liabilities': [],
+          'Current Liabilities': [],
+          'Shareholders Equity': [],
+          'Cash & Equivalents': [],
+          'Total Debt': [],
+          'Retained Earnings': [],
+          'Market Cap': []
+        },
+        cashflow: {
+          'Operating Cash Flow': [],
+          'Investing Cash Flow': [],
+          'Financing Cash Flow': [],
+          'Free Cash Flow': [],
+          'Capital Expenditures': [],
+          'Dividends Paid': []
+        },
+        ratios: {
+          'P/E Ratio': [],
+          'Price/Book': [],
+          'Profit Margin %': [],
+          'Operating Margin %': [],
+          'ROE %': [],
+          'ROA %': [],
+          'Current Ratio': [],
+          'Debt to Equity': []
         }
+      };
 
-        .company-title {
-            display: flex;
-            align-items: baseline;
-            gap: 16px;
-            margin-bottom: 16px;
+      income.forEach((report, index) => {
+        currentData.income['Revenue'][index] = report.totalRevenue;
+        currentData.income['Gross Profit'][index] = report.grossProfit;
+        currentData.income['Operating Income'][index] = report.operatingIncome;
+        currentData.income['EBITDA'][index] = report.ebitda;
+        currentData.income['Net Income'][index] = report.netIncome;
+        currentData.income['EPS (Diluted)'][index] = report.dilutedEPS;
+      });
+
+      balance.forEach((report, index) => {
+        currentData.balance['Total Assets'][index] = report.totalAssets;
+        currentData.balance['Current Assets'][index] = report.totalCurrentAssets;
+        currentData.balance['Total Liabilities'][index] = report.totalLiabilities;
+        currentData.balance['Current Liabilities'][index] = report.totalCurrentLiabilities;
+        currentData.balance['Shareholders Equity'][index] = report.totalShareholderEquity;
+        currentData.balance['Cash & Equivalents'][index] = report.cashAndCashEquivalentsAtCarryingValue;
+        currentData.balance['Total Debt'][index] = report.shortLongTermDebtTotal ||
+          (parseFloat(report.shortTermDebt || 0) + parseFloat(report.longTermDebt || 0));
+        currentData.balance['Retained Earnings'][index] = report.retainedEarnings;
+      });
+
+      let reversedCaps = yearlyMarketCaps.slice().reverse();
+      currentData.balance['Market Cap'] = reversedCaps;
+
+      cashflow.forEach((report, index) => {
+        currentData.cashflow['Operating Cash Flow'][index] = report.operatingCashflow;
+        currentData.cashflow['Investing Cash Flow'][index] = report.cashflowFromInvestment;
+        currentData.cashflow['Financing Cash Flow'][index] = report.cashflowFromFinancing;
+        currentData.cashflow['Capital Expenditures'][index] = report.capitalExpenditures;
+        currentData.cashflow['Dividends Paid'][index] = report.dividendPayout;
+        const opcf = parseFloat(report.operatingCashflow || 0);
+        const capex = parseFloat(report.capitalExpenditures || 0);
+        currentData.cashflow['Free Cash Flow'][index] = opcf - Math.abs(capex);
+      });
+
+      for (let i = 0; i < income.length; i++) {
+        currentData.ratios['P/E Ratio'][i] = overview.PERatio || 'N/A';
+        currentData.ratios['Price/Book'][i] = overview.PriceToBookRatio || 'N/A';
+      }
+
+      income.forEach((incomeReport, index) => {
+        const balanceReport = balance[index];
+        if (balanceReport) {
+          const revenue = parseFloat(incomeReport.totalRevenue);
+          const netIncome = parseFloat(incomeReport.netIncome);
+          currentData.ratios['Profit Margin %'][index] = revenue ? (netIncome / revenue * 100) : 'N/A';
+          const operatingIncome = parseFloat(incomeReport.operatingIncome);
+          currentData.ratios['Operating Margin %'][index] = revenue ? (operatingIncome / revenue * 100) : 'N/A';
+          const equity = parseFloat(balanceReport.totalShareholderEquity);
+          currentData.ratios['ROE %'][index] = equity ? (netIncome / equity * 100) : 'N/A';
+          const assets = parseFloat(balanceReport.totalAssets);
+          currentData.ratios['ROA %'][index] = assets ? (netIncome / assets * 100) : 'N/A';
+          const currentAssets = parseFloat(balanceReport.totalCurrentAssets);
+          const currentLiabilities = parseFloat(balanceReport.totalCurrentLiabilities);
+          currentData.ratios['Current Ratio'][index] = currentLiabilities ? (currentAssets / currentLiabilities) : 'N/A';
+          const totalDebt = parseFloat(balanceReport.shortLongTermDebtTotal || 0);
+          currentData.ratios['Debt to Equity'][index] = equity ? (totalDebt / equity) : 'N/A';
         }
+      });
 
-        .company-name {
-            font-size: 32px;
-            font-weight: 700;
+      Object.values(currentData.income).forEach(arr => arr.reverse());
+      Object.values(currentData.balance).forEach(arr => arr.reverse());
+      Object.values(currentData.cashflow).forEach(arr => arr.reverse());
+      Object.values(currentData.ratios).forEach(arr => arr.reverse());
+    }
+
+    function displayData() {
+      const tableContainer = document.getElementById('tableContainer');
+      const data = currentData[currentTab];
+      const years = currentData.years;
+      if (!data || years.length === 0) {
+        tableContainer.innerHTML = '<p>No data available for this section.</p>';
+        return;
+      }
+      let html = '<table>';
+      html += '<tr><th>Metric</th>';
+      years.forEach(year => { html += `<th>${year}</th>`; });
+      html += '</tr>';
+      Object.keys(data).forEach(metric => {
+        html += `<tr><td>${metric}</td>`;
+        data[metric].forEach(value => {
+          if (currentTab === 'ratios' && metric.includes('%')) {
+            const numValue = parseFloat(value);
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) + '%' : 'N/A'}</td>`;
+          } else if (currentTab === 'ratios') {
+            const numValue = parseFloat(value);
+            html += `<td>${!isNaN(numValue) ? numValue.toFixed(2) : value}</td>`;
+          } else if (metric === 'Market Cap') {
+            html += `<td>${formatNumber(value)}</td>`;
+          } else {
+            html += `<td>${formatNumber(value)}</td>`;
+          }
+        });
+        html += '</tr>';
+      });
+      html += '</table>';
+      tableContainer.innerHTML = html;
+    }
+
+    function drawNetIncomeChart() {
+      // Only draw if on income tab and data is loaded
+      if (!currentData || !currentData.income || !currentData.years) return;
+      const years = currentData.years;
+      const netIncomeArr = currentData.income['Net Income'];
+      if (!years || !netIncomeArr) return;
+
+      // Filter out years where net income is missing or N/A
+      const labels = [];
+      const data = [];
+      for (let i = 0; i < years.length; i++) {
+        const ni = netIncomeArr[i];
+        if (ni !== undefined && ni !== null && ni !== "N/A" && ni !== "None" && !isNaN(parseFloat(ni))) {
+          labels.push(years[i]);
+          data.push(parseFloat(ni));
         }
+      }
 
-        .company-ticker {
-            font-size: 24px;
-            color: var(--text-secondary);
+      const ctx = document.getElementById('netIncomeChart').getContext('2d');
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Net Income',
+            data: data,
+            borderColor: '#1368ce',
+            backgroundColor: 'rgba(19,104,206,0.15)',
+            pointBorderColor: '#1368ce',
+            pointBackgroundColor: '#fff',
+            fill: true,
+            tension: 0.15,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: { display: true, text: 'Net Income by Year', font: { size: 18, family: "'Inter', Arial, sans-serif" } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return "Net Income: " + formatNumber(context.parsed.y);
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Year' },
+              ticks: { font: { family: "'Inter', Arial, sans-serif" } }
+            },
+            y: {
+              title: { display: true, text: 'Net Income' },
+              ticks: {
+                font: { family: "'Inter', Arial, sans-serif" },
+                callback: function(value) { return formatNumber(value); }
+              }
+            }
+          }
         }
+      });
+    }
 
-        .company-meta {
-            display: flex;
-            gap: 24px;
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
+    function showError(message) {
+      const errorElement = document.getElementById('errorMessage');
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+    }
+    function hideError() {
+      document.getElementById('errorMessage').classList.add('hidden');
+    }
 
-        .price-section {
-            display: flex;
-            align-items: baseline;
-            gap: 16px;
-        }
-
-        .current-price {
-            font-size: 36px;
-            font-weight: 700;
-        }
-
-        .price-change {
-            font-size: 18px;
-            font-weight: 500;
-        }
-
-        .positive {
-            color: var(--success-green);
-        }
-
-        .negative {
-            color: var(--danger-red);
-        }
-
-        /* Navigation Tabs */
-        .nav-tabs {
-            background-color: var(--bg-primary);
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 73px;
-            z-index: 90;
-        }
-
-        .nav-tabs-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            gap: 32px;
-            padding: 0 24px;
-        }
-
-        .nav-tab {
-            padding: 16px 0;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-weight: 500;
-            border-bottom: 3px solid transparent;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .nav-tab:hover {
-            color: var(--text-primary);
-        }
-
-        .nav-tab.active {
-            color: var(--primary-blue);
-            border-bottom-color: var(--primary-blue);
-        }
-
-        /* Main Content */
-        .main-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 24px;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Key Metrics */
-        .metrics-section {
-            background-color: var(--bg-primary);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 24px;
-        }
-
-        .metric-item {
-            text-align: center;
-        }
-
-        .metric-label {
-            font-size: 12px;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-
-        .metric-value {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        /* Financial Table */
-        .financial-section {
-            background-color: var(--bg-primary);
-            border-radius: 8px;
-            padding: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 20px;
-            font-weight: 600;
-        }
-
-        .view-toggle {
-            display: flex;
-            gap: 8px;
-        }
-
-        .toggle-button {
-            padding: 6px 12px;
-            border: 1px solid var(--border-color);
-            background-color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .toggle-button.active {
-            background-color: var(--primary-blue);
-            color: white;
-            border-color: var(--primary-blue);
-        }
-
-        .financial-table {
-            overflow-x: auto;
-        }
-
-        .financial-table table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        .financial-table th,
-        .financial-table td {
-            padding: 10px 12px;
-            text-align: right;
-            border-bottom: 1px solid var(--border-color);
-            white-space: nowrap;
-        }
-
-        .financial-table th:first-child,
-        .financial-table td:first-child {
-            text-align: left;
-            position: sticky;
-            left: 0;
-            background-color: var(--bg-primary);
-            font-weight: 500;
-            z-index: 10;
-            min-width: 200px;
-        }
-
-        .financial-table th {
-            background-color: var(--bg-secondary);
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-            z-index: 5;
-        }
-
-        .financial-table tr:hover {
-            background-color: var(--bg-secondary);
-        }
-
-        .row-header {
-            font-weight: 500;
-            color: var(--text-primary);
-        }
-
-        .indent-1 {
-            padding-left: 24px !important;
-        }
-
-        .indent-2 {
-            padding-left: 48px !important;
+    document.getElementById('searchBtn').addEventListener('click', fetchFinancialData);
+    document.getElementById('stockSymbol').addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') fetchFinancialData();
+    });
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        showTab(this.getAttribute('data-tab'));
+      });
+    });
+  </script>
+</body>
+</html>
