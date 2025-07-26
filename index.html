@@ -1,504 +1,253 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Financial Data Viewer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<script>
+    const API_KEY = 'BH5QY6K3JQKBEMT7';
+    // --- SOLUTION: Add a CORS Proxy URL ---
+    const PROXY_URL = 'https://corsproxy.io/?';
+    const BASE_URL = 'https://www.alphavantage.co/query';
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-        }
+    let chartInstance = null;
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 20px 0;
-            margin-bottom: 30px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 2.5rem;
-        }
-
-        .search-section {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-
-        .search-form {
-            display: flex;
-            gap: 10px;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 12px 16px;
-            font-size: 16px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-
-        button {
-            padding: 12px 24px;
-            font-size: 16px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background-color: #2980b9;
-        }
-
-        button:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            font-size: 18px;
-            color: #7f8c8d;
-        }
-
-        .error {
-            background-color: #e74c3c;
-            color: white;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .company-info {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-
-        .company-info h2 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-
-        .data-section {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-            overflow-x: auto;
-        }
-
-        .metric-header {
-            font-size: 1.5rem;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #ecf0f1;
-            padding-bottom: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th {
-            background-color: #34495e;
-            color: white;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            position: sticky;
-            top: 0;
-        }
-
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        tr:hover {
-            background-color: #f8f9fa;
-        }
-
-        .metric-value {
-            font-weight: 500;
-        }
-
-        .positive {
-            color: #27ae60;
-        }
-
-        .negative {
-            color: #e74c3c;
-        }
-
-        .chart-container {
-            margin-top: 30px;
-            height: 400px;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-
-            h1 {
-                font-size: 2rem;
-            }
-
-            .search-form {
-                flex-direction: column;
-            }
-
-            button {
-                width: 100%;
-            }
-
-            table {
-                font-size: 14px;
-            }
-
-            th, td {
-                padding: 8px;
-            }
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .summary-card {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-
-        .summary-card h3 {
-            color: #7f8c8d;
-            font-size: 0.9rem;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-        }
-
-        .summary-card .value {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-    <header>
-        <div class="container">
-            <h1>Stock Financial Data Viewer</h1>
-        </div>
-    </header>
-
-    <div class="container">
-        <div class="search-section">
-            <form class="search-form" id="searchForm">
-                <input 
-                    type="text" 
-                    id="symbolInput" 
-                    placeholder="Enter stock symbol (e.g., AAPL)" 
-                    required
-                    autocomplete="off"
-                >
-                <button type="submit" id="searchButton">Get Financial Data</button>
-            </form>
-        </div>
-
-        <div id="loadingSection" class="loading hidden">
-            Loading financial data...
-        </div>
-
-        <div id="errorSection" class="error hidden"></div>
-
-        <div id="companySection" class="company-info hidden">
-            <h2 id="companyName"></h2>
-            <p id="companySymbol"></p>
-        </div>
-
-        <div id="summarySection" class="summary-cards hidden"></div>
-
-        <div id="dataSection" class="data-section hidden">
-            <h2 class="metric-header">Financial Metrics (Annual Data)</h2>
-            <div style="overflow-x: auto;">
-                <table id="financialTable">
-                    <thead>
-                        <tr id="tableHeader"></tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div id="chartSection" class="data-section hidden">
-            <h2 class="metric-header">Revenue & Net Income Trend</h2>
-            <div class="chart-container">
-                <canvas id="revenueChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const API_KEY = 'BH5QY6K3JQKBEMT7';
-        const BASE_URL = 'https://www.alphavantage.co/query';
-
-        let chartInstance = null;
-
-        document.getElementById('searchForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const symbol = document.getElementById('symbolInput').value.toUpperCase();
+    // --- DOM ELEMENT SELECTORS ---
+    const searchForm = document.getElementById('searchForm');
+    const symbolInput = document.getElementById('symbolInput');
+    const searchButton = document.getElementById('searchButton');
+    const loadingSection = document.getElementById('loadingSection');
+    const errorSection = document.getElementById('errorSection');
+    const companySection = document.getElementById('companySection');
+    const summarySection = document.getElementById('summarySection');
+    const dataSection = document.getElementById('dataSection');
+    const chartSection = document.getElementById('chartSection');
+    
+    searchForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const symbol = symbolInput.value.toUpperCase().trim();
+        if (symbol) {
             await fetchFinancialData(symbol);
-        });
-
-        async function fetchFinancialData(symbol) {
-            showLoading();
-            hideError();
-            hideData();
-
-            try {
-                // Fetch Income Statement
-                const incomeResponse = await fetch(`${BASE_URL}?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${API_KEY}`);
-                const incomeData = await incomeResponse.json();
-
-                if (incomeData['Error Message'] || incomeData['Note']) {
-                    throw new Error('Invalid symbol or API limit reached. Please try again later.');
-                }
-
-                // Fetch Balance Sheet
-                const balanceResponse = await fetch(`${BASE_URL}?function=BALANCE_SHEET&symbol=${symbol}&apikey=${API_KEY}`);
-                const balanceData = await balanceResponse.json();
-
-                // Fetch Company Overview
-                const overviewResponse = await fetch(`${BASE_URL}?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`);
-                const overviewData = await overviewResponse.json();
-
-                processAndDisplayData(symbol, incomeData, balanceData, overviewData);
-            } catch (error) {
-                showError(error.message);
-            } finally {
-                hideLoading();
-            }
         }
+    });
 
-        function processAndDisplayData(symbol, incomeData, balanceData, overviewData) {
-            const annualReports = incomeData.annualReports || [];
-            const balanceReports = balanceData.annualReports || [];
+    async function fetchFinancialData(symbol) {
+        showLoading();
+        hideError();
+        hideData();
+        searchButton.disabled = true;
 
-            if (annualReports.length === 0) {
-                showError('No financial data available for this symbol.');
-                return;
-            }
-
-            // Display company info
-            displayCompanyInfo(symbol, overviewData);
-
-            // Process financial metrics
-            const financialMetrics = [];
-            const maxYears = Math.min(20, annualReports.length);
-
-            for (let i = 0; i < maxYears; i++) {
-                const incomeReport = annualReports[i];
-                const balanceReport = balanceReports.find(b => b.fiscalDateEnding === incomeReport.fiscalDateEnding) || {};
-
-                const revenue = parseFloat(incomeReport.totalRevenue) || 0;
-                const netIncome = parseFloat(incomeReport.netIncome) || 0;
-                const sharesOutstanding = parseFloat(incomeReport.commonStockSharesOutstanding) || 
-                                         parseFloat(balanceReport.commonStockSharesOutstanding) || 0;
-
-                // Calculate financial ratios
-                const totalEquity = parseFloat(balanceReport.totalShareholderEquity) || 0;
-                const totalAssets = parseFloat(balanceReport.totalAssets) || 0;
-                const totalLiabilities = parseFloat(balanceReport.totalLiabilities) || 0;
-                const currentAssets = parseFloat(balanceReport.totalCurrentAssets) || 0;
-                const currentLiabilities = parseFloat(balanceReport.totalCurrentLiabilities) || 0;
-
-                const roe = totalEquity > 0 ? (netIncome / totalEquity * 100) : 0;
-                const roc = totalAssets > 0 ? (netIncome / totalAssets * 100) : 0;
-                const currentRatio = currentLiabilities > 0 ? (currentAssets / currentLiabilities) : 0;
-                const debtToEquity = totalEquity > 0 ? (totalLiabilities / totalEquity) : 0;
-
-                financialMetrics.push({
-                    year: incomeReport.fiscalDateEnding.substring(0, 4),
-                    revenue: revenue,
-                    netIncome: netIncome,
-                    sharesOutstanding: sharesOutstanding,
-                    roe: roe,
-                    roc: roc,
-                    currentRatio: currentRatio,
-                    debtToEquity: debtToEquity
-                });
-            }
-
-            // Display summary cards
-            displaySummaryCards(financialMetrics);
-
-            // Display table
-            displayFinancialTable(financialMetrics);
-
-            // Display chart
-            displayChart(financialMetrics);
-
-            showData();
-        }
-
-        function displayCompanyInfo(symbol, overviewData) {
-            document.getElementById('companyName').textContent = overviewData.Name || symbol;
-            document.getElementById('companySymbol').textContent = `${symbol} | ${overviewData.Exchange || 'N/A'} | ${overviewData.Sector || 'N/A'}`;
-            document.getElementById('companySection').classList.remove('hidden');
-        }
-
-        function displaySummaryCards(metrics) {
-            if (metrics.length === 0) return;
-
-            const latestMetrics = metrics[0];
-            const summaryHTML = `
-                <div class="summary-card">
-                    <h3>Latest Revenue</h3>
-                    <div class="value">${formatCurrency(latestMetrics.revenue)}</div>
-                </div>
-                <div class="summary-card">
-                    <h3>Latest Net Income</h3>
-                    <div class="value ${latestMetrics.netIncome >= 0 ? 'positive' : 'negative'}">
-                        ${formatCurrency(latestMetrics.netIncome)}
-                    </div>
-                </div>
-                <div class="summary-card">
-                    <h3>Current ROE</h3>
-                    <div class="value">${latestMetrics.roe.toFixed(2)}%</div>
-                </div>
-                <div class="summary-card">
-                    <h3>Current Ratio</h3>
-                    <div class="value">${latestMetrics.currentRatio.toFixed(2)}</div>
-                </div>
-            `;
-
-            document.getElementById('summarySection').innerHTML = summaryHTML;
-            document.getElementById('summarySection').classList.remove('hidden');
-        }
-
-        function displayFinancialTable(metrics) {
-            const tableHeader = document.getElementById('tableHeader');
-            const tableBody = document.getElementById('tableBody');
-
-            // Create header
-            tableHeader.innerHTML = `
-                <th>Year</th>
-                <th>Revenue</th>
-                <th>Net Income</th>
-                <th>Shares Outstanding</th>
-                <th>ROE (%)</th>
-                <th>ROC (%)</th>
-                <th>Current Ratio</th>
-                <th>Debt to Equity</th>
-            `;
-
-            // Create rows
-            tableBody.innerHTML = metrics.map(metric => `
-                <tr>
-                    <td>${metric.year}</td>
-                    <td class="metric-value">${formatCurrency(metric.revenue)}</td>
-                    <td class="metric-value ${metric.netIncome >= 0 ? 'positive' : 'negative'}">
-                        ${formatCurrency(metric.netIncome)}
-                    </td>
-                    <td class="metric-value">${formatNumber(metric.sharesOutstanding)}</td>
-                    <td class="metric-value">${metric.roe.toFixed(2)}%</td>
-                    <td class="metric-value">${metric.roc.toFixed(2)}%</td>
-                    <td class="metric-value">${metric.currentRatio.toFixed(2)}</td>
-                    <td class="metric-value">${metric.debtToEquity.toFixed(2)}</td>
-                </tr>
-            `).join('');
-        }
-
-        function displayChart(metrics) {
-            const ctx = document.getElementById('revenueChart').getContext('2d');
+        try {
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
             
-            if (chartInstance) {
-                chartInstance.destroy();
+            // --- MODIFICATION: Prepend the PROXY_URL to the fetch request ---
+            const fullUrl = (func) => `${PROXY_URL}${encodeURIComponent(`${BASE_URL}?function=${func}&symbol=${symbol}&apikey=${API_KEY}`)}`;
+
+            // --- API CALL 1: INCOME STATEMENT ---
+            const incomeResponse = await fetch(fullUrl('INCOME_STATEMENT'));
+            const incomeData = await incomeResponse.json();
+
+            if (incomeData['Error Message']) throw new Error('Invalid symbol. Please check the ticker and try again.');
+            if (incomeData['Note']) throw new Error('API limit reached. Please wait a minute and try again.');
+            if (!incomeData.annualReports || incomeData.annualReports.length === 0) {
+                throw new Error('No financial data found for this symbol. It might be a non-US stock or delisted.');
             }
 
-            const reversedMetrics = [...metrics].reverse();
+            // --- WAIT TO AVOID RATE LIMIT ---
+            await delay(13000); // 13-second delay
 
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: reversedMetrics.map(m => m.year),
-                    datasets: [
-                        {
-                            label: 'Revenue',
-                            data: reversedMetrics.map(m => m.revenue),
-                            borderColor: '#3498db',
-                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                            tension: 0.4,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Net Income',
-                            data: reversedMetrics.map(m => m.netIncome),
-                            borderColor: '#27ae60',
-                            backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                            tension: 0.4,
-                            yAxisID: 'y'
-                        }
-                    ]
+            // --- API CALL 2: BALANCE SHEET ---
+            const balanceResponse = await fetch(fullUrl('BALANCE_SHEET'));
+            const balanceData = await balanceResponse.json();
+            if (balanceData['Note']) throw new Error('API limit reached. Please wait a minute and try again.');
+
+            // --- WAIT TO AVOID RATE LIMIT ---
+            await delay(13000); // 13-second delay
+
+            // --- API CALL 3: COMPANY OVERVIEW ---
+            const overviewResponse = await fetch(fullUrl('OVERVIEW'));
+            const overviewData = await overviewResponse.json();
+            if (overviewData['Note']) throw new Error('API limit reached. Please wait a minute and try again.');
+
+            processAndDisplayData(symbol, incomeData, balanceData, overviewData);
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            showError(error.message || 'An unknown error occurred. Check the browser console for details.');
+        } finally {
+            hideLoading();
+            searchButton.disabled = false;
+        }
+    }
+
+    function processAndDisplayData(symbol, incomeData, balanceData, overviewData) {
+        const annualReports = incomeData.annualReports || [];
+        const balanceReports = balanceData.annualReports || [];
+
+        displayCompanyInfo(symbol, overviewData);
+
+        const financialMetrics = [];
+        const maxYears = Math.min(20, annualReports.length);
+
+        for (let i = 0; i < maxYears; i++) {
+            const incomeReport = annualReports[i];
+            const balanceReport = balanceReports.find(b => b.fiscalDateEnding === incomeReport.fiscalDateEnding) || {};
+
+            const revenue = parseFloat(incomeReport.totalRevenue) || 0;
+            const netIncome = parseFloat(incomeReport.netIncome) || 0;
+            const sharesOutstanding = parseFloat(balanceReport.commonStockSharesOutstanding) || 0;
+            const totalEquity = parseFloat(balanceReport.totalShareholderEquity) || 0;
+            const totalLiabilities = parseFloat(balanceReport.totalLiabilities) || 0;
+            const totalAssets = parseFloat(balanceReport.totalAssets) || 0;
+            const currentAssets = parseFloat(balanceReport.totalCurrentAssets) || 0;
+            const currentLiabilities = parseFloat(balanceReport.totalCurrentLiabilities) || 0;
+
+            const roe = totalEquity > 0 ? (netIncome / totalEquity * 100) : 0;
+            const roc = (totalAssets - currentLiabilities) > 0 ? (netIncome / (totalAssets - currentLiabilities) * 100) : 0;
+            const currentRatio = currentLiabilities > 0 ? (currentAssets / currentLiabilities) : 0;
+            const debtToEquity = totalEquity > 0 ? (totalLiabilities / totalEquity) : 0;
+
+            financialMetrics.push({
+                year: incomeReport.fiscalDateEnding.substring(0, 4),
+                revenue, netIncome, sharesOutstanding, roe, roc, currentRatio, debtToEquity
+            });
+        }
+
+        displaySummaryCards(financialMetrics);
+        displayFinancialTable(financialMetrics);
+        displayChart(financialMetrics);
+        showData();
+    }
+    
+    // --- All display and utility functions remain the same ---
+    
+    function displayCompanyInfo(symbol, overviewData) {
+        document.getElementById('companyName').textContent = overviewData.Name || symbol;
+        document.getElementById('companySymbol').textContent = `${symbol} | ${overviewData.Exchange || 'N/A'} | ${overviewData.Sector || 'N/A'}`;
+    }
+
+    function displaySummaryCards(metrics) {
+        if (metrics.length === 0) return;
+        const latestMetrics = metrics[0];
+        const summaryHTML = `
+            <div class="summary-card">
+                <h3>Latest Revenue</h3>
+                <div class="value">${formatCurrency(latestMetrics.revenue)}</div>
+            </div>
+            <div class="summary-card">
+                <h3>Latest Net Income</h3>
+                <div class="value ${latestMetrics.netIncome >= 0 ? 'positive' : 'negative'}">
+                    ${formatCurrency(latestMetrics.netIncome)}
+                </div>
+            </div>
+            <div class="summary-card">
+                <h3>Current ROE</h3>
+                <div class="value">${latestMetrics.roe.toFixed(2)}%</div>
+            </div>
+            <div class="summary-card">
+                <h3>Current Ratio</h3>
+                <div class="value">${latestMetrics.currentRatio.toFixed(2)}</div>
+            </div>
+        `;
+        summarySection.innerHTML = summaryHTML;
+    }
+
+    function displayFinancialTable(metrics) {
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        tableHeader.innerHTML = `
+            <th>Year</th>
+            <th>Revenue</th>
+            <th>Net Income</th>
+            <th>Shares Outstanding</th>
+            <th>ROE (%)</th>
+            <th>ROC (%)</th>
+            <th>Current Ratio</th>
+            <th>Debt to Equity</th>
+        `;
+        tableBody.innerHTML = metrics.map(metric => `
+            <tr>
+                <td>${metric.year}</td>
+                <td class="metric-value">${formatCurrency(metric.revenue)}</td>
+                <td class="metric-value ${metric.netIncome >= 0 ? 'positive' : 'negative'}">${formatCurrency(metric.netIncome)}</td>
+                <td class="metric-value">${formatNumber(metric.sharesOutstanding)}</td>
+                <td class="metric-value">${metric.roe.toFixed(2)}</td>
+                <td class="metric-value">${metric.roc.toFixed(2)}</td>
+                <td class="metric-value">${metric.currentRatio.toFixed(2)}</td>
+                <td class="metric-value">${metric.debtToEquity.toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function displayChart(metrics) {
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        const reversedMetrics = [...metrics].reverse();
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: reversedMetrics.map(m => m.year),
+                datasets: [
+                    {
+                        label: 'Revenue',
+                        data: reversedMetrics.map(m => m.revenue),
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Net Income',
+                        data: reversedMetrics.map(m => m.netIncome),
+                        borderColor: '#27ae60',
+                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: { label: (c) => `${c.dataset.label}: ${formatCurrency(c.raw)}` }
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + formatCurrency(context.raw
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: (v) => formatCurrency(v, true)
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function showLoading() { loadingSection.classList.remove('hidden'); }
+    function hideLoading() { loadingSection.classList.add('hidden'); }
+    function showError(message) { errorSection.textContent = message; errorSection.classList.remove('hidden'); }
+    function hideError() { errorSection.classList.add('hidden'); }
+    function showData() { 
+        companySection.classList.remove('hidden');
+        summarySection.classList.remove('hidden');
+        dataSection.classList.remove('hidden');
+        chartSection.classList.remove('hidden');
+    }
+    function hideData() {
+        companySection.classList.add('hidden');
+        summarySection.classList.add('hidden');
+        dataSection.classList.add('hidden');
+        chartSection.classList.add('hidden');
+    }
+    function formatCurrency(num, short = false) {
+        if (num === null || isNaN(num)) return '$0';
+        if (short) {
+            if (Math.abs(num) >= 1.0e+12) return (num / 1.0e+12).toFixed(2) + 'T';
+            if (Math.abs(num) >= 1.0e+9) return (num / 1.0e+9).toFixed(2) + 'B';
+            if (Math.abs(num) >= 1.0e+6) return (num / 1.0e+6).toFixed(2) + 'M';
+            if (Math.abs(num) >= 1.0e+3) return (num / 1.0e+3).toFixed(2) + 'K';
+            return num.toFixed(2);
+        }
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+    }
+    function formatNumber(num) {
+        if (num === null || isNaN(num)) return '0';
+        return new Intl.NumberFormat('en-US').format(num);
+    }
+</script>
